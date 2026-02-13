@@ -4,7 +4,7 @@ import { transact, Web3MobileWallet } from '@solana-mobile/mobile-wallet-adapter
 import { PublicKey } from '@solana/web3.js';
 import { toByteArray } from 'react-native-quick-base64';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { APP_IDENTITY } from '../../utils/constants';
+import { APP_IDENTITY, AUTH_TOKEN_KEY } from '../../utils/constants';
 
 interface ConnectButtonProps {
   onConnect: (publicKey: PublicKey, authToken: string) => void;
@@ -17,23 +17,21 @@ export function ConnectButton({ onConnect, onError }: ConnectButtonProps) {
   const handleConnect = useCallback(async () => {
     if (connecting) return;
     setConnecting(true);
-    
+
     try {
-      const cachedToken = await AsyncStorage.getItem('mwa_auth_token');
-      
+      const cachedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+
       await transact(async (wallet: Web3MobileWallet) => {
         const authResult = await wallet.authorize({
           identity: APP_IDENTITY,
           chain: 'solana:devnet',
           auth_token: cachedToken ?? undefined,
         });
-        
-        await AsyncStorage.setItem('mwa_auth_token', authResult.auth_token);
-        
-        const publicKey = new PublicKey(
-          toByteArray(authResult.accounts[0].address)
-        );
-        
+
+        await AsyncStorage.setItem(AUTH_TOKEN_KEY, authResult.auth_token);
+
+        const publicKey = new PublicKey(toByteArray(authResult.accounts[0].address));
+
         onConnect(publicKey, authResult.auth_token);
       });
     } catch (error: any) {
@@ -54,11 +52,7 @@ export function ConnectButton({ onConnect, onError }: ConnectButtonProps) {
       onPress={handleConnect}
       disabled={connecting}
     >
-      {connecting ? (
-        <ActivityIndicator color="#fff" />
-      ) : (
-        <Text style={styles.buttonText}>Connect Wallet</Text>
-      )}
+      {connecting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Connect Wallet</Text>}
     </TouchableOpacity>
   );
 }
