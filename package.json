@@ -29,6 +29,7 @@
   "main": "./index.js",
   "version": "1.0.0",
   "dependencies": {
+    "@anchor-lang/core": "^0.32.1",
     "@solana-mobile/mobile-wallet-adapter-protocol-web3js": "^2.2.5",
     "@solana/kit": "^5.5.0",
     "@solana/spl-token": "^0.4.14",
