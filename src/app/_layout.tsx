@@ -16,7 +16,7 @@ export default function Layout() {
       <MobileWalletProvider cluster={cluster} identity={APP_IDENTITY}>
         <ConnectionProvider>
           <AuthorizationProvider>
-            <SafeAreaView>
+            <SafeAreaView style={{ flex: 1 }}>
               <StatusBar barStyle="light-content" />
               <Slot />
             </SafeAreaView>

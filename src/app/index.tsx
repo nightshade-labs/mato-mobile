@@ -1,9 +1,9 @@
-import { StatusBar } from 'expo-status-bar'
-import { Text, View, Pressable } from 'react-native'
-import { useMobileWallet } from '@wallet-ui/react-native-kit'
+import { StatusBar } from 'expo-status-bar';
+import { Text, View, Pressable } from 'react-native';
+import { useMobileWallet } from '@wallet-ui/react-native-kit';
 
 export default function App() {
-  const { account, connect, disconnect } = useMobileWallet()
+  const { account, connect, disconnect } = useMobileWallet();
 
   return (
     <View className="flex-1 bg-white dark:bg-black items-center justify-center px-8">
@@ -40,5 +40,5 @@ export default function App() {
 
       <StatusBar style="auto" />
     </View>
-  )
+  );
 }
