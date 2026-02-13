@@ -6,6 +6,8 @@ export const APP_IDENTITY = {
   icon: 'favicon.ico', // Relative to uri
 };
 
+export const AUTH_TOKEN_KEY = 'mwa_auth_token';
+
 export const RPC_ENDPOINT = 'https://api.devnet.solana.com';
 
 export const CLUSTER = 'solana:devnet' as const;
