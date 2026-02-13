@@ -1,77 +1,53 @@
-import React, { useState, useCallback } from 'react';
-import { TouchableOpacity, Text, ActivityIndicator, StyleSheet } from 'react-native';
-import { transact, Web3MobileWallet } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
-import { PublicKey } from '@solana/web3.js';
-import { toByteArray } from 'react-native-quick-base64';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { APP_IDENTITY, AUTH_TOKEN_KEY } from '../../utils/constants';
+// components/ConnectButton.tsx
+import React from 'react';
+import { TouchableOpacity, Text, Alert } from 'react-native';
+import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
+import { useAuthorization } from '../providers/AuthorizationProvider';
+import { handleMWAError } from '../../utils/mwaErrorHandler';
 
-interface ConnectButtonProps {
-  onConnect: (publicKey: PublicKey, authToken: string) => void;
-  onError: (error: Error) => void;
-}
+export function ConnectButton() {
+  const { selectedAccount, authorizeSession, deauthorizeSession } = useAuthorization();
 
-export function ConnectButton({ onConnect, onError }: ConnectButtonProps) {
-  const [connecting, setConnecting] = useState(false);
-
-  const handleConnect = useCallback(async () => {
-    if (connecting) return;
-    setConnecting(true);
-
+  const handleConnect = async () => {
     try {
-      const cachedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
-
-      await transact(async (wallet: Web3MobileWallet) => {
-        const authResult = await wallet.authorize({
-          identity: APP_IDENTITY,
-          chain: 'solana:devnet',
-          auth_token: cachedToken ?? undefined,
-        });
-
-        await AsyncStorage.setItem(AUTH_TOKEN_KEY, authResult.auth_token);
-
-        const publicKey = new PublicKey(toByteArray(authResult.accounts[0].address));
-
-        onConnect(publicKey, authResult.auth_token);
+      await transact(async (wallet) => {
+        await authorizeSession(wallet);
       });
-    } catch (error: any) {
-      if (error.code === 4001) {
-        // User cancelled - not an error to report
-        console.log('User cancelled connection');
-      } else {
-        onError(error);
+    } catch (error) {
+      const mwaError = handleMWAError(error);
+      if (!mwaError.isUserCancellation) {
+        Alert.alert('Connection Error', mwaError.userMessage);
       }
-    } finally {
-      setConnecting(false);
     }
-  }, [connecting, onConnect, onError]);
+  };
+
+  const handleDisconnect = async () => {
+    try {
+      await transact(async (wallet) => {
+        await deauthorizeSession(wallet);
+      });
+    } catch (error) {
+      console.log('Disconnect error:', error);
+    }
+  };
+
+  if (selectedAccount) {
+    return (
+      <TouchableOpacity
+        className="border border-gray-500 rounded-lg p-3 items-center"
+        onPress={handleDisconnect}
+      >
+        <Text className="text-gray-400 text-sm">Disconnect Wallet</Text>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <TouchableOpacity
-      style={[styles.button, connecting && styles.buttonDisabled]}
+      className="bg-[#512da8] rounded-lg p-4 items-center"
       onPress={handleConnect}
-      disabled={connecting}
     >
-      {connecting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Connect Wallet</Text>}
+      <Text className="text-white text-base font-semibold">Connect Wallet</Text>
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  button: {
-    backgroundColor: '#512da8',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});

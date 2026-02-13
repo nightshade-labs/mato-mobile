@@ -5,17 +5,24 @@ import { MobileWalletProvider, createSolanaDevnet } from '@wallet-ui/react-nativ
 import { APP_IDENTITY } from '../utils/constants';
 import { AuthorizationProvider } from './providers/AuthorizationProvider';
 import { ConnectionProvider } from './providers/ConnectionProvider';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'react-native';
 
 const cluster = createSolanaDevnet();
 
 export default function Layout() {
   return (
-    <MobileWalletProvider cluster={cluster} identity={APP_IDENTITY}>
-      <ConnectionProvider>
-        <AuthorizationProvider>
-          <Slot />
-        </AuthorizationProvider>
-      </ConnectionProvider>
-    </MobileWalletProvider>
+    <SafeAreaProvider>
+      <MobileWalletProvider cluster={cluster} identity={APP_IDENTITY}>
+        <ConnectionProvider>
+          <AuthorizationProvider>
+            <SafeAreaView>
+              <StatusBar barStyle="light-content" />
+              <Slot />
+            </SafeAreaView>
+          </AuthorizationProvider>
+        </ConnectionProvider>
+      </MobileWalletProvider>
+    </SafeAreaProvider>
   );
 }
