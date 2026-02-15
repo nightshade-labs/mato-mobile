@@ -2,9 +2,11 @@
 import { useState, useCallback } from 'react';
 import { PublicKey, VersionedTransaction, TransactionMessage, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
+import { useQueryClient } from '@tanstack/react-query';
 import { useConnection } from '../providers/ConnectionProvider';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import { handleMWAError } from '../../utils/mwaErrorHandler';
+import { queryKeys } from '../query/keys';
 
 type SendStatus = 'idle' | 'building' | 'signing' | 'confirming' | 'success' | 'error';
 
@@ -17,6 +19,7 @@ interface SendResult {
 export function useSendSol() {
   const { connection } = useConnection();
   const { authorizeSession } = useAuthorization();
+  const queryClient = useQueryClient();
   const [result, setResult] = useState<SendResult>({
     status: 'idle',
     signature: null,
@@ -27,6 +30,7 @@ export function useSendSol() {
     async (recipientAddress: string, amountSol: number): Promise<boolean> => {
       // Reset state
       setResult({ status: 'building', signature: null, error: null });
+      let authority: PublicKey | null = null;
 
       try {
         // Validate recipient address
@@ -48,6 +52,7 @@ export function useSendSol() {
           setResult((prev) => ({ ...prev, status: 'signing' }));
 
           const account = await authorizeSession(wallet);
+          authority = account.publicKey;
 
           // Get fresh blockhash
           const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
@@ -81,6 +86,11 @@ export function useSendSol() {
         });
 
         setResult({ status: 'success', signature, error: null });
+
+        if (authority) {
+          await queryClient.invalidateQueries({ queryKey: queryKeys.balance.byAuthority(authority) });
+        }
+
         return true;
       } catch (error) {
         const mwaError = handleMWAError(error);
@@ -95,7 +105,7 @@ export function useSendSol() {
         return false;
       }
     },
-    [connection, authorizeSession],
+    [connection, authorizeSession, queryClient],
   );
 
   const reset = useCallback(() => {

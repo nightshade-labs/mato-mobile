@@ -5,6 +5,7 @@ import { MobileWalletProvider, createSolanaDevnet } from '@wallet-ui/react-nativ
 import { APP_IDENTITY } from '../utils/constants';
 import { AuthorizationProvider } from './providers/AuthorizationProvider';
 import { ConnectionProvider } from './providers/ConnectionProvider';
+import { QueryProvider } from './providers/QueryProvider';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'react-native';
@@ -16,14 +17,16 @@ export default function Layout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <MobileWalletProvider cluster={cluster} identity={APP_IDENTITY}>
-          <ConnectionProvider>
-            <AuthorizationProvider>
-              <SafeAreaView style={{ flex: 1 }}>
-                <StatusBar barStyle="light-content" />
-                <Slot />
-              </SafeAreaView>
-            </AuthorizationProvider>
-          </ConnectionProvider>
+          <QueryProvider>
+            <ConnectionProvider>
+              <AuthorizationProvider>
+                <SafeAreaView style={{ flex: 1 }}>
+                  <StatusBar barStyle="light-content" />
+                  <Slot />
+                </SafeAreaView>
+              </AuthorizationProvider>
+            </ConnectionProvider>
+          </QueryProvider>
         </MobileWalletProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

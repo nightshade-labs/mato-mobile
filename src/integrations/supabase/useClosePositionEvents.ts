@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from './client';
 import type { ClosePositionEvent } from './types';
 import { parseClosePositionEvent } from './types';
+import { queryKeys } from '../../app/query/keys';
 
 interface UseClosePositionEventsOptions {
   positionAuthority: string;
@@ -9,45 +11,41 @@ interface UseClosePositionEventsOptions {
   limit?: number;
 }
 
-export function useClosePositionEvents({
-  positionAuthority,
-  marketId,
-  limit = 50,
-}: UseClosePositionEventsOptions) {
-  const [events, setEvents] = useState<ClosePositionEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function useClosePositionEvents({ positionAuthority, marketId, limit = 50 }: UseClosePositionEventsOptions) {
+  const queryKey = useMemo(
+    () => queryKeys.closePositionEvents.list(positionAuthority, marketId, limit),
+    [positionAuthority, marketId, limit],
+  );
 
-  const fetch = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const query = useQuery<ClosePositionEvent[]>({
+    queryKey,
+    enabled: !!positionAuthority,
+    queryFn: async () => {
+      let request = supabase
+        .from('close_position_events')
+        .select('*')
+        .eq('position_authority', positionAuthority)
+        .order('slot', { ascending: false })
+        .limit(limit);
 
-    let query = supabase
-      .from('close_position_events')
-      .select('*')
-      .eq('position_authority', positionAuthority)
-      .order('slot', { ascending: false })
-      .limit(limit);
+      if (marketId !== undefined) {
+        request = request.eq('market_id', marketId);
+      }
 
-    if (marketId !== undefined) {
-      query = query.eq('market_id', marketId);
-    }
+      const { data, error: fetchError } = await request;
 
-    const { data, error: fetchError } = await query;
+      if (fetchError) {
+        throw new Error(fetchError.message);
+      }
 
-    if (fetchError) {
-      setError(fetchError.message);
-      setLoading(false);
-      return;
-    }
+      return (data ?? []).map(parseClosePositionEvent);
+    },
+  });
 
-    setEvents((data ?? []).map(parseClosePositionEvent));
-    setLoading(false);
-  }, [positionAuthority, marketId, limit]);
-
-  useEffect(() => {
-    fetch();
-  }, [fetch]);
-
-  return { events, loading, error, refetch: fetch };
+  return {
+    events: query.data ?? [],
+    loading: query.isPending || query.isFetching,
+    error: query.error instanceof Error ? query.error.message : null,
+    refetch: query.refetch,
+  };
 }

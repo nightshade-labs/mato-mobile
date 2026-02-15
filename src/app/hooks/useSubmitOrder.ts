@@ -15,6 +15,7 @@ import {
   createSyncNativeInstruction,
 } from '@solana/spl-token';
 import BN from 'bn.js';
+import { useQueryClient } from '@tanstack/react-query';
 import { useConnection } from '../providers/ConnectionProvider';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import { useProgram } from './useProgram';
@@ -22,6 +23,7 @@ import { handleMWAError } from '../../utils/mwaErrorHandler';
 import { resolver } from '../../utils/accountResolver';
 import { getTokenProgram } from '../../utils/token';
 import { ARRAY_LENGTH } from '../../utils/constants';
+import { queryKeys } from '../query/keys';
 
 type SubmitOrderStatus = 'idle' | 'building' | 'signing' | 'confirming' | 'success' | 'error';
 
@@ -46,6 +48,7 @@ export function useSubmitOrder() {
   const { connection } = useConnection();
   const { authorizeSession } = useAuthorization();
   const program = useProgram();
+  const queryClient = useQueryClient();
   const [result, setResult] = useState<SubmitOrderResult>({
     status: 'idle',
     signature: null,
@@ -55,12 +58,14 @@ export function useSubmitOrder() {
   const submitOrder = useCallback(
     async (args: SubmitOrderArgs, accounts: SubmitOrderAccounts): Promise<boolean> => {
       setResult({ status: 'building', signature: null, error: null });
+      let authority: PublicKey | null = null;
 
       try {
         const signature = await transact(async (wallet) => {
           setResult((prev) => ({ ...prev, status: 'signing' }));
 
           const account = await authorizeSession(wallet);
+          authority = account.publicKey;
           const instructions: TransactionInstruction[] = [];
 
           const market = await program.account.market.fetch(accounts.market);
@@ -172,6 +177,14 @@ export function useSubmitOrder() {
         });
 
         setResult({ status: 'success', signature, error: null });
+
+        if (authority) {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: queryKeys.balance.byAuthority(authority) }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.tradePositions.byAuthority(authority) }),
+          ]);
+        }
+
         return true;
       } catch (error) {
         const mwaError = handleMWAError(error);
@@ -185,7 +198,7 @@ export function useSubmitOrder() {
         return false;
       }
     },
-    [connection, authorizeSession, program],
+    [connection, authorizeSession, program, queryClient],
   );
 
   const reset = useCallback(() => {

@@ -3,6 +3,7 @@ import { PublicKey, VersionedTransaction, TransactionMessage, TransactionInstruc
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
 import { NATIVE_MINT, getAssociatedTokenAddressSync, createCloseAccountInstruction } from '@solana/spl-token';
 import BN from 'bn.js';
+import { useQueryClient } from '@tanstack/react-query';
 import { useConnection } from '../providers/ConnectionProvider';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import { useProgram } from './useProgram';
@@ -10,6 +11,7 @@ import { handleMWAError } from '../../utils/mwaErrorHandler';
 import { resolver } from '../../utils/accountResolver';
 import { ARRAY_LENGTH } from '../../utils/constants';
 import { getTokenProgram } from '../../utils/token';
+import { queryKeys } from '../query/keys';
 
 type ClosePositionStatus = 'idle' | 'building' | 'signing' | 'confirming' | 'success' | 'error';
 
@@ -28,6 +30,7 @@ export function useClosePosition() {
   const { connection } = useConnection();
   const { authorizeSession } = useAuthorization();
   const program = useProgram();
+  const queryClient = useQueryClient();
   const [result, setResult] = useState<ClosePositionResult>({
     status: 'idle',
     signature: null,
@@ -37,12 +40,14 @@ export function useClosePosition() {
   const closePosition = useCallback(
     async (accounts: ClosePositionAccounts): Promise<boolean> => {
       setResult({ status: 'building', signature: null, error: null });
+      let authority: PublicKey | null = null;
 
       try {
         const signature = await transact(async (wallet) => {
           setResult((prev) => ({ ...prev, status: 'signing' }));
 
           const account = await authorizeSession(wallet);
+          authority = account.publicKey;
 
           const market = await program.account.market.fetch(accounts.market);
           const [baseTokenProgram, quoteTokenProgram] = await Promise.all([
@@ -130,6 +135,15 @@ export function useClosePosition() {
         });
 
         setResult({ status: 'success', signature, error: null });
+
+        if (authority) {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: queryKeys.balance.byAuthority(authority) }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.tradePositions.byAuthority(authority) }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.closePositionEvents.all }),
+          ]);
+        }
+
         return true;
       } catch (error) {
         const mwaError = handleMWAError(error);
@@ -143,7 +157,7 @@ export function useClosePosition() {
         return false;
       }
     },
-    [connection, authorizeSession, program],
+    [connection, authorizeSession, program, queryClient],
   );
 
   const reset = useCallback(() => {

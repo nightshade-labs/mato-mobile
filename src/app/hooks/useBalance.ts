@@ -1,40 +1,23 @@
-// hooks/useBalance.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { useConnection } from '../providers/ConnectionProvider';
 import { useAuthorization } from '../providers/AuthorizationProvider';
+import { queryKeys } from '../query/keys';
 
 export function useBalance() {
   const { connection } = useConnection();
   const { selectedAccount } = useAuthorization();
-  const [balance, setBalance] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  const fetchBalance = useCallback(async () => {
-    if (!selectedAccount) {
-      setBalance(null);
-      return;
-    }
-
-    setLoading(true);
-    try {
+  const query = useQuery({
+    queryKey: queryKeys.balance.byAuthority(selectedAccount?.publicKey),
+    enabled: !!selectedAccount,
+    refetchInterval: 30_000,
+    queryFn: async () => {
+      if (!selectedAccount) return null;
       const lamports = await connection.getBalance(selectedAccount.publicKey);
-      setBalance(lamports / LAMPORTS_PER_SOL);
-    } catch (error) {
-      console.error('Failed to fetch balance:', error);
-      setBalance(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [connection, selectedAccount]);
+      return lamports / LAMPORTS_PER_SOL;
+    },
+  });
 
-  useEffect(() => {
-    fetchBalance();
-
-    // Refresh balance every 30 seconds
-    const interval = setInterval(fetchBalance, 30000);
-    return () => clearInterval(interval);
-  }, [fetchBalance]);
-
-  return { balance, loading, refresh: fetchBalance };
+  return { balance: query.data ?? null, loading: query.isPending || query.isFetching, refresh: query.refetch };
 }

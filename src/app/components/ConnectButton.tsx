@@ -2,17 +2,25 @@
 import React from 'react';
 import { TouchableOpacity, Text, Alert } from 'react-native';
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import { handleMWAError } from '../../utils/mwaErrorHandler';
+import { queryKeys } from '../query/keys';
 
 export function ConnectButton() {
   const { selectedAccount, authorizeSession, deauthorizeSession } = useAuthorization();
+  const queryClient = useQueryClient();
 
   const handleConnect = async () => {
     try {
-      await transact(async (wallet) => {
-        await authorizeSession(wallet);
+      const account = await transact(async (wallet) => {
+        return authorizeSession(wallet);
       });
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.balance.byAuthority(account.publicKey) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.tradePositions.byAuthority(account.publicKey) }),
+      ]);
     } catch (error) {
       const mwaError = handleMWAError(error);
       if (!mwaError.isUserCancellation) {
@@ -26,6 +34,10 @@ export function ConnectButton() {
       await transact(async (wallet) => {
         await deauthorizeSession(wallet);
       });
+
+      queryClient.removeQueries({ queryKey: queryKeys.balance.all });
+      queryClient.removeQueries({ queryKey: queryKeys.tradePositions.all });
+      queryClient.removeQueries({ queryKey: queryKeys.closePositionEvents.all });
     } catch (error) {
       console.log('Disconnect error:', error);
     }
