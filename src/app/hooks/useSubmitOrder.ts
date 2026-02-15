@@ -35,10 +35,10 @@ interface SubmitOrderArgs {
   id: BN;
   amount: number;
   duration: number;
+  is_buy: boolean;
 }
 
 interface SubmitOrderAccounts {
-  mint: PublicKey;
   market: PublicKey;
 }
 
@@ -63,8 +63,17 @@ export function useSubmitOrder() {
           const account = await authorizeSession(wallet);
           const instructions: TransactionInstruction[] = [];
 
-          const tokenProgram = await getTokenProgram(connection, accounts.mint);
-          const isNativeMint = accounts.mint.equals(NATIVE_MINT);
+          const market = await program.account.market.fetch(accounts.market);
+          const endSlotInterval = market.endSlotInterval.toNumber();
+          let mint: PublicKey;
+          if (args.is_buy) {
+            mint = market.quoteMint;
+          } else {
+            mint = market.baseMint;
+          }
+
+          const tokenProgram = await getTokenProgram(connection, mint);
+          const isNativeMint = mint.equals(NATIVE_MINT);
 
           if (isNativeMint) {
             const ata = getAssociatedTokenAddressSync(NATIVE_MINT, account.publicKey, false, tokenProgram);
@@ -100,9 +109,6 @@ export function useSubmitOrder() {
             instructions.push(createSyncNativeInstruction(ata, tokenProgram));
           }
 
-          const market = await program.account.market.fetch(accounts.market);
-          const endSlotInterval = market.endSlotInterval.toNumber();
-
           // Derive exits/prices PDAs from current slot
           const slot = await connection.getSlot('confirmed');
           // slot + 20 prevents that exits and prices are wrong when close to the end of their interval
@@ -122,7 +128,7 @@ export function useSubmitOrder() {
             .submitOrder(args.id, futureIndex, referenceIndex, new BN(args.amount), new BN(endSlot))
             .accountsPartial({
               authority: account.publicKey,
-              mint: accounts.mint,
+              mint: mint,
               market: accounts.market,
               currentExits,
               previousExits,

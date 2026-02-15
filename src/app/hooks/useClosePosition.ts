@@ -9,6 +9,7 @@ import { useProgram } from './useProgram';
 import { handleMWAError } from '../../utils/mwaErrorHandler';
 import { resolver } from '../../utils/accountResolver';
 import { ARRAY_LENGTH } from '../../utils/constants';
+import { getTokenProgram } from '../../utils/token';
 
 type ClosePositionStatus = 'idle' | 'building' | 'signing' | 'confirming' | 'success' | 'error';
 
@@ -19,12 +20,8 @@ interface ClosePositionResult {
 }
 
 interface ClosePositionAccounts {
-  baseMint: PublicKey;
-  quoteMint: PublicKey;
   market: PublicKey;
   tradePosition: PublicKey;
-  baseTokenProgram: PublicKey;
-  quoteTokenProgram: PublicKey;
 }
 
 export function useClosePosition() {
@@ -48,6 +45,11 @@ export function useClosePosition() {
           const account = await authorizeSession(wallet);
 
           const market = await program.account.market.fetch(accounts.market);
+          const [baseTokenProgram, quoteTokenProgram] = await Promise.all([
+            getTokenProgram(connection, market.baseMint),
+            getTokenProgram(connection, market.quoteMint),
+          ]);
+
           const endSlotInterval = market.endSlotInterval.toNumber();
           const tradePosition = await program.account.tradePosition.fetch(accounts.tradePosition);
           const futureIndex = new BN(tradePosition.endSlot.toNumber() / ARRAY_LENGTH / endSlotInterval);
@@ -68,8 +70,8 @@ export function useClosePosition() {
             .authorityClosePosition(referenceIndex)
             .accountsPartial({
               authority: account.publicKey,
-              baseMint: accounts.baseMint,
-              quoteMint: accounts.quoteMint,
+              baseMint: market.baseMint,
+              quoteMint: market.quoteMint,
               market: accounts.market,
               tradePosition: accounts.tradePosition,
               futureExits,
@@ -78,8 +80,8 @@ export function useClosePosition() {
               previousExits,
               currentPrices,
               previousPrices,
-              baseTokenProgram: accounts.baseTokenProgram,
-              quoteTokenProgram: accounts.quoteTokenProgram,
+              baseTokenProgram,
+              quoteTokenProgram,
             })
             .instruction();
 
@@ -87,8 +89,8 @@ export function useClosePosition() {
 
           // If base or quote is native mint, close the WSOL ATA to unwrap back to SOL
           for (const [mint, tokenProgram] of [
-            [accounts.baseMint, accounts.baseTokenProgram],
-            [accounts.quoteMint, accounts.quoteTokenProgram],
+            [market.baseMint, baseTokenProgram],
+            [market.quoteMint, quoteTokenProgram],
           ] as const) {
             if (mint.equals(NATIVE_MINT)) {
               const ata = getAssociatedTokenAddressSync(NATIVE_MINT, account.publicKey, false, tokenProgram);
