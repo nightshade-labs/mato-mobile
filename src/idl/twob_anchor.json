@@ -1,5 +1,5 @@
 {
-  "address": "DkjFmy1YNDDDaXoy3ZvuCnpb294UDbpbT457gUyiFS5V",
+  "address": "twobmF9NrRYUA6AN1yTdnWYfEpCr9UXWpESTRPG1KJj",
   "metadata": {
     "name": "twob_anchor",
     "version": "0.1.0",
@@ -1886,6 +1886,10 @@
         {
           "name": "reference_index",
           "type": "u64"
+        },
+        {
+          "name": "min_amount_out_atoms",
+          "type": "u64"
         }
       ]
     },
@@ -2388,6 +2392,65 @@
         {
           "name": "slot",
           "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "update_fees",
+      "discriminator": [225, 27, 13, 6, 69, 84, 172, 191],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": ["program_config"]
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "program_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [112, 114, 111, 103, 114, 97, 109, 95, 99, 111, 110, 102, 105, 103]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [109, 97, 114, 107, 101, 116]
+              },
+              {
+                "kind": "account",
+                "path": "market.id",
+                "account": "Market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "trading_fee",
+          "type": "u8"
+        },
+        {
+          "name": "unhealthy_liquidity_fee",
+          "type": "u8"
         }
       ]
     },
@@ -2941,46 +3004,51 @@
     },
     {
       "code": 6012,
+      "name": "MinAmountOutNotReached",
+      "msg": "Minimum amount out is not reached."
+    },
+    {
+      "code": 6013,
       "name": "LiquidityPositionUnhealthy",
       "msg": "Liquidity position is unhealthy."
     },
     {
-      "code": 6013,
+      "code": 6014,
       "name": "LiquidityPositionStillActive",
       "msg": "Liquidity position still active."
     },
     {
-      "code": 6014,
+      "code": 6015,
       "name": "LiquidityPositionNotActive",
       "msg": "Liquidity position not active anymore."
     },
     {
-      "code": 6015,
+      "code": 6016,
       "name": "NoDebt",
       "msg": "Liquidity position has no debt."
     },
     {
-      "code": 6016,
+      "code": 6017,
       "name": "MustCoverDebt",
       "msg": "Deposits must cover debt."
     },
     {
-      "code": 6017,
+      "code": 6018,
       "name": "MarketIsPaused",
       "msg": "Market is paused."
     },
     {
-      "code": 6018,
+      "code": 6019,
       "name": "RemainingOrders",
       "msg": "Market still has orders."
     },
     {
-      "code": 6019,
+      "code": 6020,
       "name": "AccountStillUsed",
       "msg": "Too early to close account."
     },
     {
-      "code": 6020,
+      "code": 6021,
       "name": "TradePositionExpired",
       "msg": "Too late to close position."
     }
@@ -3089,14 +3157,14 @@
             "name": "base_exits",
             "docs": ["Stores the base flow that is removed from the market at a given slot because an order ended"],
             "type": {
-              "array": ["u128", 10]
+              "array": ["u128", 20]
             }
           },
           {
             "name": "quote_exits",
             "docs": ["Stores the quote flow that is removed from the market at a given slot because an order ended"],
             "type": {
-              "array": ["u128", 10]
+              "array": ["u128", 20]
             }
           },
           {
@@ -3287,22 +3355,27 @@
             "name": "base_per_quote_snapshot",
             "docs": ["Takes a snapshot of the bookkeeping account for given slot"],
             "type": {
-              "array": ["u128", 10]
+              "array": ["u128", 20]
             }
           },
           {
             "name": "quote_per_base_snapshot",
             "docs": ["Takes a snapshot of the bookkeeping account for given slot"],
             "type": {
-              "array": ["u128", 10]
+              "array": ["u128", 20]
             }
           },
           {
             "name": "slots_without_trades_snapshot",
             "docs": ["Takes a snapshot of the bookkeeping account for given slot"],
             "type": {
-              "array": ["u64", 10]
+              "array": ["u64", 20]
             }
+          },
+          {
+            "name": "open_positions",
+            "docs": ["Number of open trade positions that end in this reference interval"],
+            "type": "u64"
           },
           {
             "name": "index",
