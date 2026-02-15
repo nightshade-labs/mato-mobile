@@ -15,3 +15,6 @@ export const CLUSTER = 'solana:devnet' as const;
 // Alternative endpoints for production
 export const MAINNET_RPC = 'https://api.mainnet-beta.solana.com';
 export const MAINNET_CLUSTER = 'solana:mainnet' as const;
+
+// TWOB PROGRAM CONSTANTS
+export const ARRAY_LENGTH = 20;
