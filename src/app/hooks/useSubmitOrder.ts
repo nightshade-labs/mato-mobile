@@ -1,6 +1,20 @@
 import { useState, useCallback } from 'react';
-import { PublicKey, VersionedTransaction, TransactionMessage } from '@solana/web3.js';
+import {
+  PublicKey,
+  VersionedTransaction,
+  TransactionMessage,
+  TransactionInstruction,
+  SystemProgram,
+} from '@solana/web3.js';
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
+import {
+  NATIVE_MINT,
+  getAssociatedTokenAddressSync,
+  getAccount,
+  createAssociatedTokenAccountIdempotentInstruction,
+  createSyncNativeInstruction,
+  TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
 import BN from 'bn.js';
 import { useConnection } from '../providers/ConnectionProvider';
 import { useAuthorization } from '../providers/AuthorizationProvider';
@@ -51,6 +65,49 @@ export function useSubmitOrder() {
           setResult((prev) => ({ ...prev, status: 'signing' }));
 
           const account = await authorizeSession(wallet);
+          const instructions: TransactionInstruction[] = [];
+
+          const isNativeMint = accounts.mint.equals(NATIVE_MINT);
+
+          if (isNativeMint) {
+            const ata = getAssociatedTokenAddressSync(
+              NATIVE_MINT,
+              account.publicKey,
+              false,
+              TOKEN_PROGRAM_ID,
+            );
+
+            let existingBalance = 0n;
+            try {
+              const tokenAccount = await getAccount(connection, ata, 'confirmed', TOKEN_PROGRAM_ID);
+              existingBalance = tokenAccount.amount;
+            } catch {
+              // ATA doesn't exist — create it
+              instructions.push(
+                createAssociatedTokenAccountIdempotentInstruction(
+                  account.publicKey,
+                  ata,
+                  account.publicKey,
+                  NATIVE_MINT,
+                  TOKEN_PROGRAM_ID,
+                ),
+              );
+            }
+
+            const requiredAmount = BigInt(args.amount.toString());
+            if (existingBalance < requiredAmount) {
+              const shortfall = requiredAmount - existingBalance;
+              instructions.push(
+                SystemProgram.transfer({
+                  fromPubkey: account.publicKey,
+                  toPubkey: ata,
+                  lamports: Number(shortfall),
+                }),
+              );
+            }
+
+            instructions.push(createSyncNativeInstruction(ata, TOKEN_PROGRAM_ID));
+          }
 
           const ix = await program.methods
             .submitOrder(args.id, args.futureIndex, args.referenceIndex, args.amount, args.endSlot)
@@ -65,13 +122,15 @@ export function useSubmitOrder() {
             })
             .instruction();
 
+          instructions.push(ix);
+
           const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
 
           const transaction = new VersionedTransaction(
             new TransactionMessage({
               payerKey: account.publicKey,
               recentBlockhash: blockhash,
-              instructions: [ix],
+              instructions,
             }).compileToV0Message(),
           );
 
@@ -81,10 +140,7 @@ export function useSubmitOrder() {
 
           setResult((prev) => ({ ...prev, status: 'confirming', signature: sig }));
 
-          await connection.confirmTransaction(
-            { signature: sig, blockhash, lastValidBlockHeight },
-            'confirmed',
-          );
+          await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
 
           return sig;
         });
