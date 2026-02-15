@@ -33,9 +33,9 @@ interface SubmitOrderResult {
 
 interface SubmitOrderArgs {
   id: BN;
+  is_buy: boolean;
   amount: number;
   duration: number;
-  is_buy: boolean;
 }
 
 interface SubmitOrderAccounts {

@@ -25,10 +25,10 @@ export default function App() {
   const { positions, loading: positionsLoading } = useTradePositions(selectedAccount?.publicKey ?? null);
 
   const handleTestOrder = async () => {
-    const durationSlots = 5000;
+    const durationInSlots = 5000;
     const id = new BN(Date.now());
 
-    await submitOrder({ id, amount: LAMPORTS_PER_SOL, duration: durationSlots, is_buy: false }, { market: MARKET });
+    await submitOrder({ id, is_buy: false, amount: LAMPORTS_PER_SOL, duration: durationInSlots }, { market: MARKET });
   };
 
   const handleTestClose = async (id: BN) => {
