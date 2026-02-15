@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import BN from 'bn.js';
 import { useMarketUpdates } from '../integrations/supabase/useMarketUpdates';
 import { aggregateCandles } from '../utils/candles';
@@ -14,7 +14,6 @@ import { useClosePosition } from './hooks/useClosePosition';
 import { useTradePositions } from './hooks/useTradePositions';
 
 const MARKET = resolver.marketPda(new BN(1));
-export const USDC_MINT = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
 
 export default function App() {
   const { events, loading } = useMarketUpdates({ marketId: 1, limit: 100000 });
