@@ -35,6 +35,7 @@
     "@solana/spl-token": "^0.4.14",
     "@supabase/supabase-js": "^2.95.3",
     "@wallet-ui/react-native-kit": "^3.1.0",
+    "assert": "^2.1.0",
     "buffer": "^6.0.3",
     "expo": "~54.0.22",
     "expo-constants": "~18.0.13",
@@ -54,6 +55,7 @@
     "react-native-screens": "~4.16.0",
     "react-native-wagmi-charts": "^2.9.1",
     "tailwindcss": "~4.1.16",
+    "text-encoding": "^0.7.0",
     "uniwind": "~1.0.0"
   },
   "devDependencies": {
