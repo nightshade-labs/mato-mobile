@@ -13,13 +13,15 @@ import {
   getAccount,
   createAssociatedTokenAccountIdempotentInstruction,
   createSyncNativeInstruction,
-  TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 import BN from 'bn.js';
 import { useConnection } from '../providers/ConnectionProvider';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import { useProgram } from './useProgram';
 import { handleMWAError } from '../../utils/mwaErrorHandler';
+import { resolver } from '../../utils/accountResolver';
+import { getTokenProgram } from '../../utils/token';
+import { ARRAY_LENGTH } from '../../utils/constants';
 
 type SubmitOrderStatus = 'idle' | 'building' | 'signing' | 'confirming' | 'success' | 'error';
 
@@ -32,7 +34,6 @@ interface SubmitOrderResult {
 interface SubmitOrderArgs {
   id: BN;
   futureIndex: BN;
-  referenceIndex: BN;
   amount: BN;
   endSlot: BN;
 }
@@ -40,10 +41,7 @@ interface SubmitOrderArgs {
 interface SubmitOrderAccounts {
   mint: PublicKey;
   market: PublicKey;
-  currentExits: PublicKey;
-  previousExits: PublicKey;
-  currentPrices: PublicKey;
-  previousPrices: PublicKey;
+  endSlotInterval: BN;
 }
 
 export function useSubmitOrder() {
@@ -67,29 +65,24 @@ export function useSubmitOrder() {
           const account = await authorizeSession(wallet);
           const instructions: TransactionInstruction[] = [];
 
+          const tokenProgram = await getTokenProgram(connection, accounts.mint);
           const isNativeMint = accounts.mint.equals(NATIVE_MINT);
 
           if (isNativeMint) {
-            const ata = getAssociatedTokenAddressSync(
-              NATIVE_MINT,
-              account.publicKey,
-              false,
-              TOKEN_PROGRAM_ID,
-            );
+            const ata = getAssociatedTokenAddressSync(NATIVE_MINT, account.publicKey, false, tokenProgram);
 
             let existingBalance = 0n;
             try {
-              const tokenAccount = await getAccount(connection, ata, 'confirmed', TOKEN_PROGRAM_ID);
+              const tokenAccount = await getAccount(connection, ata, 'confirmed', tokenProgram);
               existingBalance = tokenAccount.amount;
             } catch {
-              // ATA doesn't exist — create it
               instructions.push(
                 createAssociatedTokenAccountIdempotentInstruction(
                   account.publicKey,
                   ata,
                   account.publicKey,
                   NATIVE_MINT,
-                  TOKEN_PROGRAM_ID,
+                  tokenProgram,
                 ),
               );
             }
@@ -106,19 +99,35 @@ export function useSubmitOrder() {
               );
             }
 
-            instructions.push(createSyncNativeInstruction(ata, TOKEN_PROGRAM_ID));
+            instructions.push(createSyncNativeInstruction(ata, tokenProgram));
           }
 
+          // Derive exits/prices PDAs from current slot
+          const slot = await connection.getSlot('confirmed');
+          // slot + 20 prevents that exits and prices are wrong when close to the end of their interval
+          const referenceIndex = new BN(Math.floor((slot + 20) / (ARRAY_LENGTH * accounts.endSlotInterval.toNumber())));
+          const previousIndex = referenceIndex.sub(new BN(1));
+
+          const currentExits = resolver.exitsPda(accounts.market, referenceIndex);
+          const previousExits = resolver.exitsPda(accounts.market, previousIndex);
+          const currentPrices = resolver.pricesPda(accounts.market, referenceIndex);
+          const previousPrices = resolver.pricesPda(accounts.market, previousIndex);
+          const futureExits = resolver.exitsPda(accounts.market, args.futureIndex);
+          const futurePrices = resolver.pricesPda(accounts.market, args.futureIndex);
+
           const ix = await program.methods
-            .submitOrder(args.id, args.futureIndex, args.referenceIndex, args.amount, args.endSlot)
+            .submitOrder(args.id, args.futureIndex, referenceIndex, args.amount, args.endSlot)
             .accounts({
               authority: account.publicKey,
               mint: accounts.mint,
               market: accounts.market,
-              currentExits: accounts.currentExits,
-              previousExits: accounts.previousExits,
-              currentPrices: accounts.currentPrices,
-              previousPrices: accounts.previousPrices,
+              currentExits,
+              previousExits,
+              currentPrices,
+              previousPrices,
+              futureExits,
+              futurePrices,
+              tokenProgram,
             })
             .instruction();
 
@@ -133,6 +142,14 @@ export function useSubmitOrder() {
               instructions,
             }).compileToV0Message(),
           );
+
+          // // Simulate to get program logs before sending, nice for debugging
+          // const sim = await connection.simulateTransaction(transaction);
+          // console.log('Simulation logs:', sim.value.logs);
+          // if (sim.value.err) {
+          //   console.log('Simulation error:', JSON.stringify(sim.value.err));
+          //   throw new Error(`Simulation failed: ${JSON.stringify(sim.value.err)}`);
+          // }
 
           const [sig] = await wallet.signAndSendTransactions({
             transactions: [transaction],
