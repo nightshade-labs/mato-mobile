@@ -1,11 +1,14 @@
 import { useState, useCallback } from 'react';
-import { PublicKey, VersionedTransaction, TransactionMessage } from '@solana/web3.js';
+import { PublicKey, VersionedTransaction, TransactionMessage, TransactionInstruction } from '@solana/web3.js';
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
+import { NATIVE_MINT, getAssociatedTokenAddressSync, createCloseAccountInstruction } from '@solana/spl-token';
 import BN from 'bn.js';
 import { useConnection } from '../providers/ConnectionProvider';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import { useProgram } from './useProgram';
 import { handleMWAError } from '../../utils/mwaErrorHandler';
+import { resolver } from '../../utils/accountResolver';
+import { ARRAY_LENGTH } from '../../utils/constants';
 
 type ClosePositionStatus = 'idle' | 'building' | 'signing' | 'confirming' | 'success' | 'error';
 
@@ -20,12 +23,6 @@ interface ClosePositionAccounts {
   quoteMint: PublicKey;
   market: PublicKey;
   tradePosition: PublicKey;
-  futureExits: PublicKey;
-  futurePrices: PublicKey;
-  currentExits: PublicKey;
-  previousExits: PublicKey;
-  currentPrices: PublicKey;
-  previousPrices: PublicKey;
   baseTokenProgram: PublicKey;
   quoteTokenProgram: PublicKey;
 }
@@ -41,7 +38,7 @@ export function useClosePosition() {
   });
 
   const closePosition = useCallback(
-    async (referenceIndex: BN, accounts: ClosePositionAccounts): Promise<boolean> => {
+    async (accounts: ClosePositionAccounts): Promise<boolean> => {
       setResult({ status: 'building', signature: null, error: null });
 
       try {
@@ -50,24 +47,56 @@ export function useClosePosition() {
 
           const account = await authorizeSession(wallet);
 
+          const market = await program.account.market.fetch(accounts.market);
+          const endSlotInterval = market.endSlotInterval.toNumber();
+          const tradePosition = await program.account.tradePosition.fetch(accounts.tradePosition);
+          const futureIndex = new BN(tradePosition.endSlot.toNumber() / ARRAY_LENGTH / endSlotInterval);
+
+          // Derive exits/prices PDAs from current slot
+          const slot = await connection.getSlot('confirmed');
+          const referenceIndex = new BN(Math.floor((slot + 20) / (ARRAY_LENGTH * endSlotInterval)));
+          const previousIndex = referenceIndex.sub(new BN(1));
+
+          const currentExits = resolver.exitsPda(accounts.market, referenceIndex);
+          const previousExits = resolver.exitsPda(accounts.market, previousIndex);
+          const currentPrices = resolver.pricesPda(accounts.market, referenceIndex);
+          const previousPrices = resolver.pricesPda(accounts.market, previousIndex);
+          const futureExits = resolver.exitsPda(accounts.market, futureIndex);
+          const futurePrices = resolver.pricesPda(accounts.market, futureIndex);
+
           const ix = await program.methods
             .authorityClosePosition(referenceIndex)
-            .accounts({
+            .accountsPartial({
               authority: account.publicKey,
               baseMint: accounts.baseMint,
               quoteMint: accounts.quoteMint,
               market: accounts.market,
               tradePosition: accounts.tradePosition,
-              futureExits: accounts.futureExits,
-              futurePrices: accounts.futurePrices,
-              currentExits: accounts.currentExits,
-              previousExits: accounts.previousExits,
-              currentPrices: accounts.currentPrices,
-              previousPrices: accounts.previousPrices,
+              futureExits,
+              futurePrices,
+              currentExits,
+              previousExits,
+              currentPrices,
+              previousPrices,
               baseTokenProgram: accounts.baseTokenProgram,
               quoteTokenProgram: accounts.quoteTokenProgram,
             })
             .instruction();
+
+          const instructions: TransactionInstruction[] = [ix];
+
+          // If base or quote is native mint, close the WSOL ATA to unwrap back to SOL
+          for (const [mint, tokenProgram] of [
+            [accounts.baseMint, accounts.baseTokenProgram],
+            [accounts.quoteMint, accounts.quoteTokenProgram],
+          ] as const) {
+            if (mint.equals(NATIVE_MINT)) {
+              const ata = getAssociatedTokenAddressSync(NATIVE_MINT, account.publicKey, false, tokenProgram);
+              instructions.push(
+                createCloseAccountInstruction(ata, account.publicKey, account.publicKey, [], tokenProgram),
+              );
+            }
+          }
 
           const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
 
@@ -75,9 +104,17 @@ export function useClosePosition() {
             new TransactionMessage({
               payerKey: account.publicKey,
               recentBlockhash: blockhash,
-              instructions: [ix],
+              instructions,
             }).compileToV0Message(),
           );
+
+          // Nice for debugging
+          // const sim = await connection.simulateTransaction(transaction);
+          // console.log('Simulation logs:', sim.value.logs);
+          // if (sim.value.err) {
+          //   console.log('Simulation error:', JSON.stringify(sim.value.err));
+          //   throw new Error(`Simulation failed: ${JSON.stringify(sim.value.err)}`);
+          // }
 
           const [sig] = await wallet.signAndSendTransactions({
             transactions: [transaction],
@@ -85,10 +122,7 @@ export function useClosePosition() {
 
           setResult((prev) => ({ ...prev, status: 'confirming', signature: sig }));
 
-          await connection.confirmTransaction(
-            { signature: sig, blockhash, lastValidBlockHeight },
-            'confirmed',
-          );
+          await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
 
           return sig;
         });

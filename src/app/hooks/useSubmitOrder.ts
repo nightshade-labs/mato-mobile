@@ -33,15 +33,13 @@ interface SubmitOrderResult {
 
 interface SubmitOrderArgs {
   id: BN;
-  futureIndex: BN;
-  amount: BN;
-  endSlot: BN;
+  amount: number;
+  duration: number;
 }
 
 interface SubmitOrderAccounts {
   mint: PublicKey;
   market: PublicKey;
-  endSlotInterval: BN;
 }
 
 export function useSubmitOrder() {
@@ -102,22 +100,27 @@ export function useSubmitOrder() {
             instructions.push(createSyncNativeInstruction(ata, tokenProgram));
           }
 
+          const market = await program.account.market.fetch(accounts.market);
+          const endSlotInterval = market.endSlotInterval.toNumber();
+
           // Derive exits/prices PDAs from current slot
           const slot = await connection.getSlot('confirmed');
           // slot + 20 prevents that exits and prices are wrong when close to the end of their interval
-          const referenceIndex = new BN(Math.floor((slot + 20) / (ARRAY_LENGTH * accounts.endSlotInterval.toNumber())));
+          const referenceIndex = new BN(Math.floor((slot + 20) / (ARRAY_LENGTH * endSlotInterval)));
+          const endSlot = Math.floor((slot + args.duration + endSlotInterval / 2) / endSlotInterval) * endSlotInterval;
+          const futureIndex = new BN(Math.floor(endSlot / (ARRAY_LENGTH * endSlotInterval)));
           const previousIndex = referenceIndex.sub(new BN(1));
 
           const currentExits = resolver.exitsPda(accounts.market, referenceIndex);
           const previousExits = resolver.exitsPda(accounts.market, previousIndex);
           const currentPrices = resolver.pricesPda(accounts.market, referenceIndex);
           const previousPrices = resolver.pricesPda(accounts.market, previousIndex);
-          const futureExits = resolver.exitsPda(accounts.market, args.futureIndex);
-          const futurePrices = resolver.pricesPda(accounts.market, args.futureIndex);
+          const futureExits = resolver.exitsPda(accounts.market, futureIndex);
+          const futurePrices = resolver.pricesPda(accounts.market, futureIndex);
 
           const ix = await program.methods
-            .submitOrder(args.id, args.futureIndex, referenceIndex, args.amount, args.endSlot)
-            .accounts({
+            .submitOrder(args.id, futureIndex, referenceIndex, new BN(args.amount), new BN(endSlot))
+            .accountsPartial({
               authority: account.publicKey,
               mint: accounts.mint,
               market: accounts.market,
