@@ -4,7 +4,7 @@ import BN from 'bn.js';
 import { useProgram } from './useProgram';
 import { queryKeys } from '../query/keys';
 
-interface TradePosition {
+export interface TradePosition {
   publicKey: PublicKey;
   id: BN;
   amount: BN;
