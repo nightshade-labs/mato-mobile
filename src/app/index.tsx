@@ -11,6 +11,7 @@ import { useMintBalance } from './hooks/useMintBalance';
 import { useSubmitOrder } from './hooks/useSubmitOrder';
 import { useTradePositions } from './hooks/useTradePositions';
 import { useClosePosition } from './hooks/useClosePosition';
+import { useStreamingMarketState } from './hooks/useStreamingMarketState';
 import { ConnectButton } from './components/ConnectButton';
 import { PercentageSlider } from './components/PercentageSlider';
 import { ClosedPositionsList } from './components/ClosedPositionsList';
@@ -108,6 +109,7 @@ export default function App() {
   const { submitOrder, status, error: orderError, signature } = useSubmitOrder();
   const { positions, loading: positionsLoading } = useTradePositions(selectedAccount?.publicKey ?? null);
   const { closePosition, status: closeStatus, error: closeError, signature: closeSignature } = useClosePosition();
+  const { state: streamingState, error: streamingStateError } = useStreamingMarketState(MARKET, !!selectedAccount);
   const [side, setSide] = useState<OrderSide>('buy');
   const [amountInput, setAmountInput] = useState('');
   const [durationSeconds, setDurationSeconds] = useState(30 * 60);
@@ -417,6 +419,7 @@ export default function App() {
                     isClosing={isClosing}
                     closeButtonLabel={closeButtonLabel}
                     onClose={() => handleClosePosition(position.publicKey)}
+                    streamingState={streamingState}
                   />
                 ))}
               </View>
@@ -428,6 +431,7 @@ export default function App() {
               </Text>
             )}
             {closeStatus === 'error' && closeError && <Text className="text-[#f48993] text-sm mt-2">{closeError}</Text>}
+            {streamingStateError && <Text className="text-[#f48993] text-sm mt-2">{streamingStateError}</Text>}
           </View>
         )}
 

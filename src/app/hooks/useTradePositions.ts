@@ -10,6 +10,7 @@ export interface TradePosition {
   amount: BN;
   startSlot: BN;
   endSlot: BN;
+  bookkeepingSnapshot: BN;
   isBuy: boolean;
 }
 
@@ -32,6 +33,7 @@ export function useTradePositions(authority: PublicKey | null) {
         amount: a.account.amount as BN,
         startSlot: a.account.startSlot as BN,
         endSlot: a.account.endSlot as BN,
+        bookkeepingSnapshot: a.account.bookkeepingSnapshot as BN,
         isBuy: a.account.isBuy === 1,
       }));
     },

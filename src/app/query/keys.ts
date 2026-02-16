@@ -36,4 +36,8 @@ export const queryKeys = {
     list: (positionAuthority: string, marketId: number | undefined, limit: number) =>
       ['closePositionEvents', positionAuthority, marketId ?? 'all', limit] as const,
   },
+  streamingMarket: {
+    all: ['streamingMarket'] as const,
+    byMarket: (market: PublicKey | string | null | undefined) => ['streamingMarket', toAuthorityKey(market)] as const,
+  },
 };
