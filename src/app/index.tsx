@@ -23,11 +23,11 @@ export default function App() {
   const { closePosition, status: closeStatus } = useClosePosition();
   const { positions, loading: positionsLoading } = useTradePositions(selectedAccount?.publicKey ?? null);
 
-  const handleTestOrder = async () => {
+  const handleTestOrder = async (is_buy: boolean, amount: number) => {
     const durationInSlots = 5000;
     const id = new BN(Date.now());
 
-    await submitOrder({ id, is_buy: false, amount: LAMPORTS_PER_SOL, duration: durationInSlots }, { market: MARKET });
+    await submitOrder({ id, is_buy, amount, duration: durationInSlots }, { market: MARKET });
   };
 
   const handleTestClose = async (id: BN) => {
@@ -79,7 +79,7 @@ export default function App() {
         {selectedAccount && (
           <View className="mb-4 items-center">
             <Pressable
-              onPress={handleTestOrder}
+              onPress={() => handleTestOrder(false, LAMPORTS_PER_SOL / 10)}
               disabled={status === 'building' || status === 'signing' || status === 'confirming'}
               className="bg-green-600 px-6 py-3 rounded-xl active:bg-green-700"
             >
@@ -90,7 +90,28 @@ export default function App() {
                     ? 'Signing...'
                     : status === 'confirming'
                       ? 'Confirming...'
-                      : 'Submit 1 SOL Order'}
+                      : 'Submit 0.1 SOL Order'}
+              </Text>
+            </Pressable>
+            {status === 'success' && <Text className="text-green-500 mt-2">Order submitted!</Text>}
+            {status === 'error' && <Text className="text-red-500 mt-2">{orderError}</Text>}
+          </View>
+        )}
+        {selectedAccount && (
+          <View className="mb-4 items-center">
+            <Pressable
+              onPress={() => handleTestOrder(true, 10000000)}
+              disabled={status === 'building' || status === 'signing' || status === 'confirming'}
+              className="bg-green-600 px-6 py-3 rounded-xl active:bg-green-700"
+            >
+              <Text className="text-white font-bold">
+                {status === 'building'
+                  ? 'Building...'
+                  : status === 'signing'
+                    ? 'Signing...'
+                    : status === 'confirming'
+                      ? 'Confirming...'
+                      : 'Submit 10 USDC Order'}
               </Text>
             </Pressable>
             {status === 'success' && <Text className="text-green-500 mt-2">Order submitted!</Text>}
