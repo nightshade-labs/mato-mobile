@@ -19,6 +19,10 @@ export const queryKeys = {
     all: ['marketUpdates'] as const,
     list: (marketId: number, limit: number) => ['marketUpdates', marketId, limit] as const,
   },
+  marketPrice: {
+    all: ['marketPrice'] as const,
+    byMarket: (marketId: number) => ['marketPrice', marketId] as const,
+  },
   closePositionEvents: {
     all: ['closePositionEvents'] as const,
     list: (positionAuthority: string, marketId: number | undefined, limit: number) =>
