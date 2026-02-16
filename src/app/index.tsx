@@ -12,11 +12,14 @@ import { useAuthorization } from './providers/AuthorizationProvider';
 import { useSubmitOrder } from './hooks/useSubmitOrder';
 import { useClosePosition } from './hooks/useClosePosition';
 import { useTradePositions } from './hooks/useTradePositions';
+import { useMarketPrice } from './hooks/useMarketPrice';
 
-const MARKET = resolver.marketPda(new BN(1));
+const MARKET_ID = 1; // SOL/USDC market has id 1
+const MARKET = resolver.marketPda(new BN(MARKET_ID));
 
 export default function App() {
-  const { events, loading } = useMarketUpdates({ marketId: 1, limit: 100000 });
+  const { events, loading } = useMarketUpdates({ marketId: MARKET_ID, limit: 100000 });
+  const { price: marketPrice } = useMarketPrice(MARKET_ID);
   const candles = useMemo(() => aggregateCandles(events), [events]);
   const { selectedAccount } = useAuthorization();
   const { submitOrder, status, error: orderError } = useSubmitOrder();
@@ -43,6 +46,12 @@ export default function App() {
 
   return (
     <View className="flex-1 bg-white dark:bg-black">
+      <View className="px-8 pt-12 pb-4">
+        <Text className="text-lg font-bold text-gray-800 dark:text-white">
+          SOL/USDC: {marketPrice !== null ? `$${marketPrice.toFixed(4)}` : '—'}
+        </Text>
+      </View>
+
       {/* {loading ? (
         <View style={{ height: 300, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#3b82f6" />
