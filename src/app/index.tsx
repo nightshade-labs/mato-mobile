@@ -13,6 +13,7 @@ import { useTradePositions } from './hooks/useTradePositions';
 import { useClosePosition } from './hooks/useClosePosition';
 import { ConnectButton } from './components/ConnectButton';
 import { PercentageSlider } from './components/PercentageSlider';
+import { ClosedPositionsList } from './components/ClosedPositionsList';
 import { useAuthorization } from './providers/AuthorizationProvider';
 import type { MarketConfigRow } from '../integrations/supabase/types';
 
@@ -52,8 +53,8 @@ function resolveTicker(config: MarketConfigRow | null, side: OrderSide): string 
 
   const symbol =
     side === 'buy'
-      ? config.quote_ticker ?? config.quote_symbol ?? shortenAddress(config.quote_mint)
-      : config.base_ticker ?? config.base_symbol ?? shortenAddress(config.base_mint);
+      ? (config.quote_ticker ?? config.quote_symbol ?? shortenAddress(config.quote_mint))
+      : (config.base_ticker ?? config.base_symbol ?? shortenAddress(config.base_mint));
 
   return symbol.toUpperCase();
 }
@@ -119,6 +120,7 @@ function durationToSlots(seconds: number): number {
 
 export default function App() {
   const { selectedAccount } = useAuthorization();
+  const positionAuthority = selectedAccount?.publicKey.toBase58() ?? '';
   const { config, loading: configLoading, error: configError } = useMarketConfig(MARKET_ID);
   const { price: marketPrice } = useMarketPrice(MARKET_ID);
   const { submitOrder, status, error: orderError, signature } = useSubmitOrder();
@@ -145,11 +147,15 @@ export default function App() {
   const availableAmountAtoms = side === 'sell' ? baseBalance.balanceAtoms : quoteBalance.balanceAtoms;
   const availableAmountUi = side === 'sell' ? baseBalance.balanceUi : quoteBalance.balanceUi;
   const availableAmountLoading = side === 'sell' ? baseBalance.loading : quoteBalance.loading;
+  const availableAmountDisplay = selectedAccount ? availableAmountUi : 0;
 
   const amountAtoms = useMemo(() => parseTokenAmount(amountInput, amountDecimals), [amountInput, amountDecimals]);
   const amountExceedsAvailable =
     amountAtoms !== null && availableAmountAtoms !== null && amountAtoms > availableAmountAtoms;
-  const sliderValue = useMemo(() => toSliderPercent(amountAtoms, availableAmountAtoms), [amountAtoms, availableAmountAtoms]);
+  const sliderValue = useMemo(
+    () => toSliderPercent(amountAtoms, availableAmountAtoms),
+    [amountAtoms, availableAmountAtoms],
+  );
   const isSubmitting = status === 'building' || status === 'signing' || status === 'confirming';
   const isClosing = closeStatus === 'building' || closeStatus === 'signing' || closeStatus === 'confirming';
 
@@ -281,9 +287,7 @@ export default function App() {
             </Pressable>
             <Pressable
               onPress={() => handleSideChange('sell')}
-              className={`flex-1 py-3 rounded-lg items-center ${
-                side === 'sell' ? 'bg-[#d4525d]' : 'bg-transparent'
-              }`}
+              className={`flex-1 py-3 rounded-lg items-center ${side === 'sell' ? 'bg-[#d4525d]' : 'bg-transparent'}`}
             >
               <Text className={`font-semibold ${side === 'sell' ? 'text-white' : 'text-[#8b93bd]'}`}>Sell</Text>
             </Pressable>
@@ -291,11 +295,11 @@ export default function App() {
 
           <View className="mb-4">
             <Text className="text-[#8b93bd] text-sm mb-1">Available to trade</Text>
-            {availableAmountLoading ? (
+            {selectedAccount && availableAmountLoading ? (
               <ActivityIndicator size="small" color="#c5cbe8" />
             ) : (
               <Text className="text-white text-lg font-semibold">
-                {formatUiAmount(availableAmountUi)} {amountTokenTicker}
+                {formatUiAmount(availableAmountDisplay)} {amountTokenTicker}
               </Text>
             )}
           </View>
@@ -419,9 +423,7 @@ export default function App() {
                   const depositedDecimals = isBuy ? quoteDecimals : baseDecimals;
                   const depositedAmount = formatAtomsToDisplay(BigInt(position.amount.toString()), depositedDecimals);
                   const sideLabel = isBuy ? 'Buy' : 'Sell';
-                  const flowLabel = isBuy
-                    ? `${quoteTicker} -> ${baseTicker}`
-                    : `${baseTicker} -> ${quoteTicker}`;
+                  const flowLabel = isBuy ? `${quoteTicker} -> ${baseTicker}` : `${baseTicker} -> ${quoteTicker}`;
 
                   return (
                     <View
@@ -466,6 +468,17 @@ export default function App() {
             )}
             {closeStatus === 'error' && closeError && <Text className="text-[#f48993] text-sm mt-2">{closeError}</Text>}
           </View>
+        )}
+
+        {selectedAccount && (
+          <ClosedPositionsList
+            positionAuthority={positionAuthority}
+            marketId={MARKET_ID}
+            baseTicker={baseTicker}
+            quoteTicker={quoteTicker}
+            baseDecimals={baseDecimals}
+            quoteDecimals={quoteDecimals}
+          />
         )}
       </ScrollView>
 

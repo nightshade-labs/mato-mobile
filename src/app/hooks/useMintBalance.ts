@@ -15,10 +15,11 @@ export function useMintBalance(mintAddress: string | null | undefined, decimals:
   const { connection } = useConnection();
   const { selectedAccount } = useAuthorization();
   const decimalsValue = useMemo(() => Math.max(0, decimals ?? 0), [decimals]);
+  const isEnabled = !!selectedAccount && !!mintAddress;
 
   const query = useQuery({
     queryKey: queryKeys.balance.byAuthorityMint(selectedAccount?.publicKey, mintAddress),
-    enabled: !!selectedAccount && !!mintAddress,
+    enabled: isEnabled,
     queryFn: async () => {
       if (!selectedAccount || !mintAddress) return null;
 
@@ -44,7 +45,7 @@ export function useMintBalance(mintAddress: string | null | undefined, decimals:
   return {
     balanceAtoms: query.data ?? null,
     balanceUi: query.data === null || query.data === undefined ? null : toUiAmount(query.data, decimalsValue),
-    loading: query.isPending || query.isFetching,
+    loading: isEnabled && (query.isPending || query.isFetching),
     error: query.error instanceof Error ? query.error.message : null,
     refresh: query.refetch,
   };
