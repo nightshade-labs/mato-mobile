@@ -53,6 +53,10 @@ export interface MarketConfigRow {
   quote_mint: string
   base_decimals: number
   quote_decimals: number
+  base_ticker?: string | null
+  quote_ticker?: string | null
+  base_symbol?: string | null
+  quote_symbol?: string | null
   created_at: string
 }
 

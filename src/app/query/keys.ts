@@ -9,6 +9,10 @@ export const queryKeys = {
   balance: {
     all: ['balance'] as const,
     byAuthority: (authority: PublicKey | string | null | undefined) => ['balance', toAuthorityKey(authority)] as const,
+    byAuthorityMint: (
+      authority: PublicKey | string | null | undefined,
+      mint: string | null | undefined,
+    ) => ['balance', toAuthorityKey(authority), mint ?? 'unknown'] as const,
   },
   tradePositions: {
     all: ['tradePositions'] as const,
