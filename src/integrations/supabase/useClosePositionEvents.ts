@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from './client';
 import type { ClosePositionEvent } from './types';
 import { parseClosePositionEvent } from './types';
-import { queryKeys } from '../../app/query/keys';
+import { queryKeys } from '../../query/keys';
 
 interface UseClosePositionEventsOptions {
   positionAuthority: string;

@@ -11,7 +11,7 @@ import { toByteArray } from 'react-native-quick-base64';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Account, Authorization, AuthorizationContextValue } from './types';
-import { APP_IDENTITY, AUTH_TOKEN_KEY, CLUSTER } from '../../utils/constants';
+import { APP_IDENTITY, AUTH_TOKEN_KEY, CLUSTER } from '../utils/constants';
 
 // Convert MWA account format to our Account type
 function convertAccount(mwaAccount: MWAAccount): Account {

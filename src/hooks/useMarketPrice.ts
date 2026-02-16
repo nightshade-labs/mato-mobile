@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../../integrations/supabase/client';
-import type { MarketUpdateEventRow } from '../../integrations/supabase/types';
+import { supabase } from '../integrations/supabase/client';
+import type { MarketUpdateEventRow } from '../integrations/supabase/types';
 import { queryKeys } from '../query/keys';
 import { useMarketConfig } from './useMarketConfig';
 
@@ -42,6 +42,8 @@ export function useMarketPrice(marketId: number) {
       };
     },
     enabled: config !== null,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: true,
   });
 
   useEffect(() => {

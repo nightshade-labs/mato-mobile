@@ -5,7 +5,7 @@ import { PublicKey } from '@solana/web3.js';
 import { useConnection } from '../providers/ConnectionProvider';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import { queryKeys } from '../query/keys';
-import { getTokenProgram } from '../../utils/token';
+import { getTokenProgram } from '../utils/token';
 
 function toUiAmount(balanceAtoms: bigint, decimals: number): number {
   return Number(balanceAtoms) / 10 ** decimals;

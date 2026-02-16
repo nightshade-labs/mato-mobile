@@ -7,10 +7,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useConnection } from '../providers/ConnectionProvider';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import { useProgram } from './useProgram';
-import { handleMWAError } from '../../utils/mwaErrorHandler';
-import { resolver } from '../../utils/accountResolver';
-import { ARRAY_LENGTH } from '../../utils/constants';
-import { getTokenProgram } from '../../utils/token';
+import { handleMWAError } from '../utils/mwaErrorHandler';
+import { resolver } from '../utils/accountResolver';
+import { ARRAY_LENGTH } from '../utils/constants';
+import { getTokenProgram } from '../utils/token';
 import { queryKeys } from '../query/keys';
 
 type ClosePositionStatus = 'idle' | 'building' | 'signing' | 'confirming' | 'success' | 'error';

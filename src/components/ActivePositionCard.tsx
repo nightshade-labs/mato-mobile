@@ -1,6 +1,7 @@
 import { Pressable, Text, View } from 'react-native';
 import type { TradePosition } from '../hooks/useTradePositions';
 import type { StreamingMarketState } from '../hooks/useStreamingMarketState';
+import { uiColors } from '../theme/colors';
 
 interface ActivePositionCardProps {
   position: TradePosition;
@@ -103,44 +104,78 @@ export function ActivePositionCard({
   }
 
   return (
-    <View className="rounded-xl border border-[#323a64] bg-[#10142a] p-4 mb-3">
-      <Text className="text-white text-base font-semibold">
-        {sideLabel} ({flowLabel})
-      </Text>
-
-      <Text className="text-[#b6bee3] text-sm mt-1">
-        Deposited: {formatAtomsToDisplay(amountAtoms, depositedDecimals)} {depositedToken}
-      </Text>
-      <Text className="text-[#b6bee3] text-sm mt-1">
-        Flow: {formatAtomsToDisplay(flowAtomsPerSlot, depositedDecimals)} {depositedToken}/slot
-      </Text>
-      <Text className="text-[#b6bee3] text-sm mt-1">
-        Remaining: {formatAtomsToDisplay(remainingAtoms, depositedDecimals)} {depositedToken}
-      </Text>
-      <View className="mt-2 h-2 rounded-full bg-[#2a3258]">
-        <View className="h-2 rounded-full bg-[#27b46e]" style={{ width: `${Math.max(0, 100 - remainingPercent)}%` }} />
+    <View
+      className="rounded-xl p-3 mb-2.5"
+      style={{ borderColor: uiColors.border, backgroundColor: uiColors.surfaceAlt, borderWidth: 1 }}
+    >
+      <View className="flex-row items-center justify-between">
+        <View className="flex-row items-center">
+          <View
+            className="px-2 py-0.5 rounded-md"
+            style={{ backgroundColor: isBuy ? uiColors.successBg : uiColors.dangerBg }}
+          >
+            <Text className="text-[10px] font-semibold" style={{ color: isBuy ? uiColors.accentText : uiColors.dangerText }}>
+              {sideLabel}
+            </Text>
+          </View>
+          <Text className="text-[#9ea8d6] text-xs ml-2">{flowLabel}</Text>
+        </View>
+        {streamingState && <Text className="text-[#7d88b8] text-[10px]">Slot {currentSlot}</Text>}
       </View>
-      <Text className="text-[#8b93bd] text-xs mt-1">{remainingPercent.toFixed(2)}% remaining</Text>
 
-      <Text className="text-[#b6bee3] text-sm mt-2">
-        Swapped estimate:{' '}
-        {swappedEstimateAtoms === null
-          ? '—'
-          : `${formatAtomsToDisplay(swappedEstimateAtoms, swappedDecimals)} ${swappedToken}`}
-      </Text>
+      <View className="mt-2 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
+        <View className="flex-row justify-between mb-1">
+          <View className="flex-1 pr-2">
+            <Text className="text-[#7380b4] text-[10px] uppercase">Deposited</Text>
+            <Text className="text-[#d7defa] text-xs font-medium">
+              {formatAtomsToDisplay(amountAtoms, depositedDecimals)} {depositedToken}
+            </Text>
+          </View>
+          <View className="flex-1 pl-2">
+            <Text className="text-[#7380b4] text-[10px] uppercase">Remaining</Text>
+            <Text className="text-[#d7defa] text-xs font-medium">
+              {formatAtomsToDisplay(remainingAtoms, depositedDecimals)} {depositedToken}
+            </Text>
+          </View>
+        </View>
+        <View className="flex-row justify-between mb-1">
+          <View className="flex-1 pr-2">
+            <Text className="text-[#7380b4] text-[10px] uppercase">Flow / Slot</Text>
+            <Text className="text-[#d7defa] text-xs font-medium">
+              {formatAtomsToDisplay(flowAtomsPerSlot, depositedDecimals)} {depositedToken}
+            </Text>
+          </View>
+          <View className="flex-1 pl-2">
+            <Text className="text-[#7380b4] text-[10px] uppercase">Est. Swapped</Text>
+            <Text className="text-[#d7defa] text-xs font-medium">
+              {swappedEstimateAtoms === null
+                ? '—'
+                : `${formatAtomsToDisplay(swappedEstimateAtoms, swappedDecimals)} ${swappedToken}`}
+            </Text>
+          </View>
+        </View>
+      </View>
 
-      <Text className="text-[#8b93bd] text-xs mt-2">
-        Position: {position.publicKey.toBase58().slice(0, 6)}...
-        {position.publicKey.toBase58().slice(-6)}
-      </Text>
-      {streamingState && <Text className="text-[#8b93bd] text-xs mt-1">Current slot: {currentSlot}</Text>}
+      <View className="mt-2 h-1.5 rounded-full bg-[#2a3258]">
+        <View
+          className="h-1.5 rounded-full"
+          style={{ backgroundColor: uiColors.accent, width: `${Math.max(0, 100 - remainingPercent)}%` }}
+        />
+      </View>
+      <View className="flex-row justify-between mt-1">
+        <Text className="text-[#8b93bd] text-[10px]">{remainingPercent.toFixed(2)}% remaining</Text>
+        <Text className="text-[#8b93bd] text-[10px]">
+          {position.publicKey.toBase58().slice(0, 6)}...{position.publicKey.toBase58().slice(-6)}
+        </Text>
+      </View>
 
       <Pressable
         onPress={onClose}
         disabled={isClosing}
-        className={`rounded-xl py-3 items-center mt-3 ${isClosing ? 'bg-[#4a2d30]' : 'bg-[#d4525d]'}`}
+        className="rounded-lg py-2.5 items-center mt-2"
+        style={{ backgroundColor: isClosing ? '#4a2d30' : uiColors.danger }}
       >
-        <Text className="text-white font-semibold text-sm">{closeButtonLabel}</Text>
+        <Text className="text-white font-semibold text-xs">{closeButtonLabel}</Text>
       </Pressable>
     </View>
   );

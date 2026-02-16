@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { PublicKey } from '@solana/web3.js';
 import { useConnection } from '../providers/ConnectionProvider';
 import { useProgram } from './useProgram';
-import { resolver } from '../../utils/accountResolver';
+import { resolver } from '../utils/accountResolver';
 import { queryKeys } from '../query/keys';
 
 export interface StreamingMarketState {

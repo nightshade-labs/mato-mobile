@@ -5,7 +5,7 @@ import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useConnection } from '../providers/ConnectionProvider';
 import { useAuthorization } from '../providers/AuthorizationProvider';
-import { handleMWAError } from '../../utils/mwaErrorHandler';
+import { handleMWAError } from '../utils/mwaErrorHandler';
 import { queryKeys } from '../query/keys';
 
 type SendStatus = 'idle' | 'building' | 'signing' | 'confirming' | 'success' | 'error';

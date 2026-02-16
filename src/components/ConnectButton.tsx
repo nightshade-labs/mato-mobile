@@ -4,10 +4,15 @@ import { TouchableOpacity, Text, Alert } from 'react-native';
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthorization } from '../providers/AuthorizationProvider';
-import { handleMWAError } from '../../utils/mwaErrorHandler';
+import { handleMWAError } from '../utils/mwaErrorHandler';
 import { queryKeys } from '../query/keys';
+import { uiColors } from '../theme/colors';
 
-export function ConnectButton() {
+interface ConnectButtonProps {
+  variant?: 'default' | 'compact';
+}
+
+export function ConnectButton({ variant = 'default' }: ConnectButtonProps) {
   const { selectedAccount, authorizeSession, deauthorizeSession } = useAuthorization();
   const queryClient = useQueryClient();
 
@@ -44,9 +49,28 @@ export function ConnectButton() {
   };
 
   if (selectedAccount) {
+    if (variant === 'compact') {
+      return (
+        <TouchableOpacity className="border border-[#3a4677] rounded-lg px-3 py-2 items-center" onPress={handleDisconnect}>
+          <Text className="text-[#c9d1f4] text-xs font-medium">Disconnect</Text>
+        </TouchableOpacity>
+      );
+    }
     return (
       <TouchableOpacity className="border border-gray-500 rounded-lg p-3 items-center" onPress={handleDisconnect}>
         <Text className="text-gray-400 text-sm">Disconnect Wallet</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  if (variant === 'compact') {
+    return (
+      <TouchableOpacity
+        className="rounded-lg px-4 py-2 items-center"
+        style={{ backgroundColor: uiColors.accent }}
+        onPress={handleConnect}
+      >
+        <Text className="text-[#0a111f] text-xs font-semibold">Connect</Text>
       </TouchableOpacity>
     );
   }
