@@ -19,6 +19,10 @@ export const queryKeys = {
     all: ['marketUpdates'] as const,
     list: (marketId: number, limit: number) => ['marketUpdates', marketId, limit] as const,
   },
+  marketConfig: {
+    all: ['marketConfig'] as const,
+    byMarket: (marketId: number) => ['marketConfig', marketId] as const,
+  },
   marketPrice: {
     all: ['marketPrice'] as const,
     byMarket: (marketId: number) => ['marketPrice', marketId] as const,

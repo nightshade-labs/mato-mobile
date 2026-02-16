@@ -3,12 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../integrations/supabase/client';
 import type { MarketUpdateEventRow } from '../../integrations/supabase/types';
 import { queryKeys } from '../query/keys';
-
-interface UseMarketPriceOptions {
-  marketId: number;
-  baseDecimals: number;
-  quoteDecimals: number;
-}
+import { useMarketConfig } from './useMarketConfig';
 
 function computePrice(
   baseFlow: string,
@@ -21,13 +16,16 @@ function computePrice(
   return (Number(quoteFlow) / 10 ** quoteDecimals) / (base / 10 ** baseDecimals);
 }
 
-export function useMarketPrice({ marketId, baseDecimals, quoteDecimals }: UseMarketPriceOptions) {
+export function useMarketPrice(marketId: number) {
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => queryKeys.marketPrice.byMarket(marketId), [marketId]);
+  const { config } = useMarketConfig(marketId);
 
   const query = useQuery({
     queryKey,
     queryFn: async () => {
+      if (!config) throw new Error('Market config not loaded');
+
       const { data, error } = await supabase
         .from('market_update_events')
         .select('*')
@@ -39,13 +37,16 @@ export function useMarketPrice({ marketId, baseDecimals, quoteDecimals }: UseMar
       if (error) throw new Error(error.message);
 
       return {
-        price: computePrice(data.base_flow, data.quote_flow, baseDecimals, quoteDecimals),
+        price: computePrice(data.base_flow, data.quote_flow, config.base_decimals, config.quote_decimals),
         slot: data.slot,
       };
     },
+    enabled: config !== null,
   });
 
   useEffect(() => {
+    if (!config) return;
+
     const channel = supabase
       .channel(`market_price_${marketId}`)
       .on<MarketUpdateEventRow>(
@@ -58,7 +59,7 @@ export function useMarketPrice({ marketId, baseDecimals, quoteDecimals }: UseMar
         },
         (payload) => {
           const { base_flow, quote_flow, slot } = payload.new;
-          const price = computePrice(base_flow, quote_flow, baseDecimals, quoteDecimals);
+          const price = computePrice(base_flow, quote_flow, config.base_decimals, config.quote_decimals);
           queryClient.setQueryData(queryKey, { price, slot });
         },
       )
@@ -67,7 +68,7 @@ export function useMarketPrice({ marketId, baseDecimals, quoteDecimals }: UseMar
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [marketId, baseDecimals, quoteDecimals, queryClient, queryKey]);
+  }, [marketId, config, queryClient, queryKey]);
 
   return {
     price: query.data?.price ?? null,

@@ -14,11 +14,12 @@ import { useClosePosition } from './hooks/useClosePosition';
 import { useTradePositions } from './hooks/useTradePositions';
 import { useMarketPrice } from './hooks/useMarketPrice';
 
-const MARKET = resolver.marketPda(new BN(1));
+const MARKET_ID = 1; // SOL/USDC market has id 1
+const MARKET = resolver.marketPda(new BN(MARKET_ID));
 
 export default function App() {
-  const { events, loading } = useMarketUpdates({ marketId: 1, limit: 100000 });
-  const { price: marketPrice } = useMarketPrice({ marketId: 1, baseDecimals: 9, quoteDecimals: 6 });
+  const { events, loading } = useMarketUpdates({ marketId: MARKET_ID, limit: 100000 });
+  const { price: marketPrice } = useMarketPrice(MARKET_ID);
   const candles = useMemo(() => aggregateCandles(events), [events]);
   const { selectedAccount } = useAuthorization();
   const { submitOrder, status, error: orderError } = useSubmitOrder();
