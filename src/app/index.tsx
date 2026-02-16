@@ -52,9 +52,7 @@ function resolveTicker(config: MarketConfigRow | null, side: OrderSide): string 
   if (!config) return side === 'buy' ? 'QUOTE' : 'BASE';
 
   const symbol =
-    side === 'buy'
-      ? (config.quote_ticker ?? config.quote_symbol ?? shortenAddress(config.quote_mint))
-      : (config.base_ticker ?? config.base_symbol ?? shortenAddress(config.base_mint));
+    side === 'buy' ? (config.quote_ticker ?? shortenAddress(config.quote_mint)) : (config.base_ticker ?? shortenAddress(config.base_mint));
 
   return symbol.toUpperCase();
 }
