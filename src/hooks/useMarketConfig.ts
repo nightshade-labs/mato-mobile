@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '../../integrations/supabase/client';
-import type { MarketConfigRow } from '../../integrations/supabase/types';
+import { supabase } from '../integrations/supabase/client';
+import type { MarketConfigRow } from '../integrations/supabase/types';
 import { queryKeys } from '../query/keys';
 
 export function useMarketConfig(marketId: number) {

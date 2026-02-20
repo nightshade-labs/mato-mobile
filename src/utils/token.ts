@@ -27,7 +27,7 @@ export async function getTokenBalance(
   try {
     const accountInfo = await connection.getTokenAccountBalance(ata);
     return parseFloat(accountInfo.value.uiAmountString || '0');
-  } catch (error) {
+  } catch {
     // Account doesn't exist = zero balance
     return 0;
   }

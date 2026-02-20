@@ -1,7 +1,7 @@
 // src/providers/ConnectionProvider.tsx
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
 import { Connection } from '@solana/web3.js';
-import { RPC_ENDPOINT } from '../../utils/constants';
+import { RPC_ENDPOINT } from '../utils/constants';
 
 interface ConnectionContextValue {
   connection: Connection;

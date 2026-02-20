@@ -4,13 +4,19 @@ import type { MarketUpdateEvent } from '../integrations/supabase/types';
 export function aggregateCandles(
   events: MarketUpdateEvent[],
   intervalMs: number = 60_000,
+  baseDecimals: number = 0,
+  quoteDecimals: number = 0,
 ): TCandle[] {
+  const baseScale = 10 ** baseDecimals;
+  const quoteScale = 10 ** quoteDecimals;
+
   const priced = events
     .filter((e) => e.base_flow !== 0n)
     .map((e) => ({
       time: new Date(e.created_at).getTime(),
-      price: Math.abs(Number(e.quote_flow)) / Math.abs(Number(e.base_flow)),
+      price: Math.abs(Number(e.quote_flow) / quoteScale) / Math.abs(Number(e.base_flow) / baseScale),
     }))
+    .filter((entry) => Number.isFinite(entry.price) && entry.price > 0)
     .sort((a, b) => a.time - b.time);
 
   if (priced.length === 0) return [];

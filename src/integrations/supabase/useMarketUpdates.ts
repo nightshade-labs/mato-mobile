@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from './client';
 import type { MarketUpdateEvent, MarketUpdateEventRow } from './types';
 import { parseMarketUpdateEvent } from './types';
-import { queryKeys } from '../../app/query/keys';
+import { queryKeys } from '../../query/keys';
 
 interface UseMarketUpdatesOptions {
   marketId: number;
@@ -30,6 +30,8 @@ export function useMarketUpdates({ marketId, limit = 50 }: UseMarketUpdatesOptio
 
       return (data ?? []).map(parseMarketUpdateEvent);
     },
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: true,
   });
 
   useEffect(() => {

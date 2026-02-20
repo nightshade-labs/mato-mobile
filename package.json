@@ -30,6 +30,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@anchor-lang/core": "^0.32.1",
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "@solana-mobile/mobile-wallet-adapter-protocol-web3js": "^2.2.5",
     "@solana/kit": "^5.5.0",
     "@solana/spl-token": "^0.4.14",
@@ -56,6 +57,7 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-wagmi-charts": "^2.9.1",
+    "react-native-webview": "^13.16.0",
     "tailwindcss": "~4.1.16",
     "text-encoding": "^0.7.0",
     "uniwind": "~1.0.0"
