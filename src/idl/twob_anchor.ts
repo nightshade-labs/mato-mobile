@@ -4268,6 +4268,14 @@ export type TwobAnchor = {
             type: 'u64';
           },
           {
+            name: 'startSlot';
+            type: 'u64';
+          },
+          {
+            name: 'endSlot';
+            type: 'u64';
+          },
+          {
             name: 'depositAmount';
             type: 'u64';
           },
