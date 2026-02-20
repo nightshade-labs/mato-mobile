@@ -10,6 +10,8 @@ export interface ClosePositionEvent {
   fee_amount: bigint;
   is_buy: number;
   created_at: string;
+  start_slot: number | null;
+  end_slot: number | null;
 }
 
 export interface MarketUpdateEvent {
@@ -34,6 +36,8 @@ export interface ClosePositionEventRow {
   fee_amount: string;
   is_buy: number;
   created_at: string;
+  start_slot: number | null;
+  end_slot: number | null;
 }
 
 export interface MarketUpdateEventRow {
