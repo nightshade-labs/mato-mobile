@@ -1,4 +1,5 @@
-import { ActivityIndicator, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native';
 import { useClosePositionEvents } from '../integrations/supabase/useClosePositionEvents';
 import { uiColors } from '../theme/colors';
 
@@ -10,6 +11,7 @@ interface ClosedPositionsListProps {
   baseDecimals: number;
   quoteDecimals: number;
   embedded?: boolean;
+  limit?: number;
 }
 
 function formatAtomsToDisplay(amountAtoms: bigint, decimals: number): string {
@@ -34,26 +36,29 @@ function subtractFloorZero(minuend: bigint, subtrahend: bigint): bigint {
   return minuend - subtrahend;
 }
 
-function formatQuotePerBasePrice(
+function computeEffectivePrice(
   quoteAtoms: bigint,
   quoteDecimals: number,
   baseAtoms: bigint,
   baseDecimals: number,
-  precision: number = 6,
-): string | null {
-  if (quoteAtoms < 0n || baseAtoms <= 0n) return null;
+): number | null {
+  if (baseAtoms <= 0n) return null;
+  const quoteUi = Number(quoteAtoms) / 10 ** quoteDecimals;
+  const baseUi = Number(baseAtoms) / 10 ** baseDecimals;
+  if (baseUi === 0) return null;
+  const price = quoteUi / baseUi;
+  if (!Number.isFinite(price) || price <= 0) return null;
+  return price;
+}
 
-  const scale = 10n ** BigInt(precision);
-  const scaledQuote = quoteAtoms * scale * 10n ** BigInt(baseDecimals);
-  const scaledBase = baseAtoms * 10n ** BigInt(quoteDecimals);
-  if (scaledBase <= 0n) return null;
+function formatPrice(value: number): string {
+  if (value >= 1) return value.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  return value.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+}
 
-  const scaledPrice = scaledQuote / scaledBase;
-  const whole = scaledPrice / scale;
-  const fraction = (scaledPrice % scale).toString().padStart(precision, '0').replace(/0+$/, '');
-
-  if (fraction.length === 0) return whole.toString();
-  return `${whole.toString()}.${fraction}`;
+function shortenSignature(sig: string): string {
+  if (sig.length <= 12) return sig;
+  return `${sig.slice(0, 6)}...${sig.slice(-4)}`;
 }
 
 export function ClosedPositionsList({
@@ -64,11 +69,12 @@ export function ClosedPositionsList({
   baseDecimals,
   quoteDecimals,
   embedded = false,
+  limit = 50,
 }: ClosedPositionsListProps) {
   const { events, loading, error } = useClosePositionEvents({
     positionAuthority,
     marketId,
-    limit: 50,
+    limit,
   });
 
   const content = (
@@ -81,97 +87,16 @@ export function ClosedPositionsList({
         <Text className="text-[#8b93bd] text-sm">No closed positions yet.</Text>
       ) : (
         <View>
-          {events.map((event) => {
-            const isBuy = event.is_buy === 1;
-            const sideLabel = isBuy ? 'Buy' : 'Sell';
-            const flowLabel = isBuy ? `${quoteTicker} -> ${baseTicker}` : `${baseTicker} -> ${quoteTicker}`;
-
-            const depositToken = isBuy ? quoteTicker : baseTicker;
-            const depositDecimals = isBuy ? quoteDecimals : baseDecimals;
-            const swappedToken = isBuy ? baseTicker : quoteTicker;
-            const swappedDecimals = isBuy ? baseDecimals : quoteDecimals;
-            const feeToken = swappedToken;
-            const feeDecimals = swappedDecimals;
-
-            const depositedAtoms = event.deposit_amount;
-            const remainingAtoms = event.remaining_amount;
-            const consumedAtoms = subtractFloorZero(depositedAtoms, remainingAtoms);
-            const swappedAtoms = event.swapped_amount;
-            const feeAtoms = event.fee_amount;
-
-            const quoteNumeratorAtoms = isBuy ? consumedAtoms : swappedAtoms;
-            const baseDenominatorAtoms = isBuy ? swappedAtoms : consumedAtoms;
-            const effectivePrice = formatQuotePerBasePrice(
-              quoteNumeratorAtoms,
-              quoteDecimals,
-              baseDenominatorAtoms,
-              baseDecimals,
-            );
-            const effectivePriceLabel = isBuy ? 'Effective price paid' : 'Effective price received';
-
-            return (
-              <View
-                key={event.id}
-                className="rounded-xl p-3 mb-2.5"
-                style={{ borderColor: uiColors.border, backgroundColor: uiColors.surfaceAlt, borderWidth: 1 }}
-              >
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center">
-                    <View
-                      className="px-2 py-0.5 rounded-md"
-                      style={{ backgroundColor: isBuy ? uiColors.successBg : uiColors.dangerBg }}
-                    >
-                      <Text
-                        className="text-[10px] font-semibold"
-                        style={{ color: isBuy ? uiColors.accentText : uiColors.dangerText }}
-                      >
-                        {sideLabel}
-                      </Text>
-                    </View>
-                    <Text className="text-[#9ea8d6] text-xs ml-2">{flowLabel}</Text>
-                  </View>
-                  <Text className="text-[#7d88b8] text-[10px]">Slot {event.slot}</Text>
-                </View>
-
-                <View className="mt-2 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
-                  <View className="flex-row justify-between mb-1">
-                    <View className="flex-1 pr-2">
-                      <Text className="text-[#7380b4] text-[10px] uppercase">Deposited</Text>
-                      <Text className="text-[#d7defa] text-xs font-medium">
-                        {formatAtomsToDisplay(depositedAtoms, depositDecimals)} {depositToken}
-                      </Text>
-                    </View>
-                    <View className="flex-1 pl-2">
-                      <Text className="text-[#7380b4] text-[10px] uppercase">Actually Swapped</Text>
-                      <Text className="text-[#d7defa] text-xs font-medium">
-                        {formatAtomsToDisplay(consumedAtoms, depositDecimals)} {depositToken}
-                      </Text>
-                    </View>
-                  </View>
-                  <View className="flex-row justify-between mb-1">
-                    <View className="flex-1 pr-2">
-                      <Text className="text-[#7380b4] text-[10px] uppercase">Received</Text>
-                      <Text className="text-[#d7defa] text-xs font-medium">
-                        {formatAtomsToDisplay(swappedAtoms, swappedDecimals)} {swappedToken}
-                      </Text>
-                    </View>
-                    <View className="flex-1 pl-2">
-                      <Text className="text-[#7380b4] text-[10px] uppercase">Fee</Text>
-                      <Text className="text-[#d7defa] text-xs font-medium">
-                        {formatAtomsToDisplay(feeAtoms, feeDecimals)} {feeToken}
-                      </Text>
-                    </View>
-                  </View>
-                  <View className="mt-1 pt-1 border-t" style={{ borderTopColor: uiColors.divider }}>
-                    <Text className="text-[#7380b4] text-[10px] uppercase">{effectivePriceLabel}</Text>
-                    <Text className="text-[#d7defa] text-xs font-medium">
-                      {effectivePrice === null ? '—' : `${effectivePrice} ${quoteTicker}/${baseTicker}`}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            );
-          })}
+          {events.map((event) => (
+            <ClosedPositionRow
+              key={event.id}
+              event={event}
+              baseTicker={baseTicker}
+              quoteTicker={quoteTicker}
+              baseDecimals={baseDecimals}
+              quoteDecimals={quoteDecimals}
+            />
+          ))}
         </View>
       )}
 
@@ -184,4 +109,141 @@ export function ClosedPositionsList({
   }
 
   return <View className="rounded-2xl bg-[#171b34] border border-[#2a2f53] p-5 mt-5">{content}</View>;
+}
+
+interface ClosedPositionRowProps {
+  event: {
+    id: number;
+    signature: string;
+    slot: number;
+    is_buy: number;
+    deposit_amount: bigint;
+    swapped_amount: bigint;
+    remaining_amount: bigint;
+    fee_amount: bigint;
+  };
+  baseTicker: string;
+  quoteTicker: string;
+  baseDecimals: number;
+  quoteDecimals: number;
+}
+
+function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quoteDecimals }: ClosedPositionRowProps) {
+  const [expanded, setExpanded] = useState(false);
+  const isBuy = event.is_buy === 1;
+  const sideLabel = isBuy ? 'Buy' : 'Sell';
+  const flowLabel = isBuy ? `${quoteTicker} → ${baseTicker}` : `${baseTicker} → ${quoteTicker}`;
+
+  const depositToken = isBuy ? quoteTicker : baseTicker;
+  const depositDecimals = isBuy ? quoteDecimals : baseDecimals;
+  const swappedToken = isBuy ? baseTicker : quoteTicker;
+  const swappedDecimals = isBuy ? baseDecimals : quoteDecimals;
+  const feeToken = swappedToken;
+  const feeDecimals = swappedDecimals;
+
+  const depositedAtoms = event.deposit_amount;
+  const remainingAtoms = event.remaining_amount;
+  const consumedAtoms = subtractFloorZero(depositedAtoms, remainingAtoms);
+  const swappedAtoms = event.swapped_amount;
+  const feeAtoms = event.fee_amount;
+
+  const quoteNumeratorAtoms = isBuy ? consumedAtoms : swappedAtoms;
+  const baseDenominatorAtoms = isBuy ? swappedAtoms : consumedAtoms;
+  const effectivePrice = computeEffectivePrice(quoteNumeratorAtoms, quoteDecimals, baseDenominatorAtoms, baseDecimals);
+  const effectivePriceLabel = isBuy ? 'Effective price paid' : 'Effective price received';
+
+  const handleOpenTx = () => {
+    if (event.signature) {
+      Linking.openURL(`https://solscan.io/tx/${event.signature}?cluster=testnet`);
+    }
+  };
+
+  return (
+    <Pressable onPress={() => setExpanded((prev) => !prev)}>
+      <View
+        className="rounded-xl p-3 mb-2.5"
+        style={{ borderColor: uiColors.border, backgroundColor: uiColors.surfaceAlt, borderWidth: 1 }}
+      >
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center flex-1">
+            <View
+              className="px-2 py-0.5 rounded-md"
+              style={{ backgroundColor: isBuy ? uiColors.successBg : uiColors.dangerBg }}
+            >
+              <Text
+                className="text-[10px] font-semibold"
+                style={{ color: isBuy ? uiColors.accentText : uiColors.dangerText }}
+              >
+                {sideLabel}
+              </Text>
+            </View>
+            <Text className="text-[#9ea8d6] text-xs ml-2">{flowLabel}</Text>
+          </View>
+          <View className="flex-row items-center">
+            <Pressable onPress={handleOpenTx} hitSlop={8}>
+              <Text className="text-[#7d88b8] text-[10px] underline">{shortenSignature(event.signature)}</Text>
+            </Pressable>
+            <Text className="text-[#7d88b8] text-[10px] ml-2">{expanded ? '▲' : '▼'}</Text>
+          </View>
+        </View>
+
+        {!expanded && (
+          <View
+            className="flex-row items-center justify-between mt-2 pt-2 border-t"
+            style={{ borderTopColor: uiColors.divider }}
+          >
+            <Text className="text-[#d7defa] text-xs font-medium">
+              {formatAtomsToDisplay(consumedAtoms, depositDecimals)} {depositToken}
+            </Text>
+            <Text className="text-[#7380b4] text-[10px]">→</Text>
+            <Text className="text-[#d7defa] text-xs font-medium">
+              {formatAtomsToDisplay(swappedAtoms, swappedDecimals)} {swappedToken}
+            </Text>
+            {effectivePrice !== null && (
+              <Text className="text-[#8b93bd] text-[10px]">@ {formatPrice(effectivePrice)}</Text>
+            )}
+          </View>
+        )}
+
+        {expanded && (
+          <View className="mt-2 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
+            <View className="flex-row justify-between mb-1">
+              <View className="flex-1 pr-2">
+                <Text className="text-[#7380b4] text-[10px] uppercase">Deposited</Text>
+                <Text className="text-[#d7defa] text-xs font-medium">
+                  {formatAtomsToDisplay(depositedAtoms, depositDecimals)} {depositToken}
+                </Text>
+              </View>
+              <View className="flex-1 pl-2">
+                <Text className="text-[#7380b4] text-[10px] uppercase">Actually Swapped</Text>
+                <Text className="text-[#d7defa] text-xs font-medium">
+                  {formatAtomsToDisplay(consumedAtoms, depositDecimals)} {depositToken}
+                </Text>
+              </View>
+            </View>
+            <View className="flex-row justify-between mb-1">
+              <View className="flex-1 pr-2">
+                <Text className="text-[#7380b4] text-[10px] uppercase">Received</Text>
+                <Text className="text-[#d7defa] text-xs font-medium">
+                  {formatAtomsToDisplay(swappedAtoms, swappedDecimals)} {swappedToken}
+                </Text>
+              </View>
+              <View className="flex-1 pl-2">
+                <Text className="text-[#7380b4] text-[10px] uppercase">Fee</Text>
+                <Text className="text-[#d7defa] text-xs font-medium">
+                  {formatAtomsToDisplay(feeAtoms, feeDecimals)} {feeToken}
+                </Text>
+              </View>
+            </View>
+            <View className="mt-1 pt-1 border-t" style={{ borderTopColor: uiColors.divider }}>
+              <Text className="text-[#7380b4] text-[10px] uppercase">{effectivePriceLabel}</Text>
+              <Text className="text-[#d7defa] text-xs font-medium">
+                {effectivePrice === null ? '—' : `${formatPrice(effectivePrice)} ${quoteTicker}/${baseTicker}`}
+              </Text>
+            </View>
+          </View>
+        )}
+      </View>
+    </Pressable>
+  );
 }

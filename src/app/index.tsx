@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+// StatusBar is configured in _layout.tsx
+import { ActivityIndicator, Image, Keyboard, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BN from 'bn.js';
 import { PublicKey } from '@solana/web3.js';
@@ -70,14 +70,6 @@ type FeedbackType = 'success' | 'error';
 interface FeedbackMessage {
   type: FeedbackType;
   message: string;
-}
-
-interface TradeListRow {
-  id: number;
-  price: number;
-  sizeQuote: number;
-  timestamp: number;
-  trend: 'up' | 'down' | 'flat';
 }
 
 function shortenAddress(value: string | null | undefined): string {
@@ -250,7 +242,6 @@ export default function App() {
   const [crosshairData, setCrosshairData] = useState<TradingViewCrosshairData | null>(null);
   const [isChartTimeframeReady, setIsChartTimeframeReady] = useState(false);
   const [isSwitchingTimeframe, setIsSwitchingTimeframe] = useState(false);
-  const [clockNow, setClockNow] = useState(() => Date.now());
   const [validationError, setValidationError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -335,28 +326,6 @@ export default function App() {
   }, [marketEvents, config]);
   const latestTickPrice = recentTickPrices.length > 0 ? recentTickPrices[0] : null;
   const previousTickPrice = recentTickPrices.length > 1 ? recentTickPrices[1] : null;
-  const lastMarketUpdateAtMs = useMemo(() => {
-    const latestEvent = marketEvents[0];
-    if (!latestEvent) return null;
-    const timestamp = new Date(latestEvent.created_at).getTime();
-    return Number.isFinite(timestamp) ? timestamp : null;
-  }, [marketEvents]);
-  const marketUpdateAgeSeconds =
-    lastMarketUpdateAtMs === null ? null : Math.max(0, Math.floor((clockNow - lastMarketUpdateAtMs) / 1000));
-  const marketUpdateFreshness = useMemo(() => {
-    if (marketUpdateAgeSeconds === null) return 'unknown' as const;
-    if (marketUpdateAgeSeconds <= 5) return 'healthy' as const;
-    if (marketUpdateAgeSeconds <= 20) return 'delayed' as const;
-    return 'stale' as const;
-  }, [marketUpdateAgeSeconds]);
-  const feedStatusLabel =
-    marketUpdateFreshness === 'healthy'
-      ? 'Live'
-      : marketUpdateFreshness === 'delayed'
-        ? 'Delayed'
-        : marketUpdateFreshness === 'stale'
-          ? 'Stale'
-          : 'Unknown';
   const onChainIndicativePrice = useMemo(() => {
     if (!config || !streamingState) return null;
     return marketPriceFromFlows(
@@ -367,7 +336,6 @@ export default function App() {
     );
   }, [config, streamingState]);
 
-  // Keep the hero price tied to the live ticker first to avoid "static" aggregation artifacts.
   const displayPrice = marketPrice ?? latestTickPrice ?? onChainIndicativePrice ?? latestChartCandle?.close ?? null;
   const priceDelta =
     latestTickPrice !== null && previousTickPrice !== null
@@ -425,6 +393,20 @@ export default function App() {
     return `~${formatUiAmount(estimatedQuote)} ${quoteTicker}`;
   }, [amountUiValue, displayPrice, side, baseTicker, quoteTicker]);
 
+  const priceImpactPercent = useMemo(() => {
+    if (!amountAtoms || amountAtoms <= 0n || !streamingState) return null;
+    const slots = durationToSlots(durationSeconds);
+    const userFlowPerSlot = amountAtoms / BigInt(slots);
+    if (userFlowPerSlot <= 0n) return null;
+
+    if (side === 'buy') {
+      if (streamingState.marketQuoteFlow <= 0n) return null;
+      return (Number(userFlowPerSlot) / Number(streamingState.marketQuoteFlow)) * 100;
+    }
+    if (streamingState.marketBaseFlow <= 0n) return null;
+    return (Number(userFlowPerSlot) / Number(streamingState.marketBaseFlow + userFlowPerSlot)) * 100;
+  }, [amountAtoms, durationSeconds, streamingState, side]);
+
   const activeOhlcv = useMemo(() => {
     if (crosshairData) {
       return {
@@ -449,37 +431,6 @@ export default function App() {
     return null;
   }, [crosshairData, latestTradingViewCandle]);
   const activeOhlcvTimeLabel = useMemo(() => formatCrosshairTimeLabel(activeOhlcv?.time ?? null), [activeOhlcv]);
-  const tradeRows = useMemo(() => {
-    if (!config) return [] as TradeListRow[];
-
-    const rows: TradeListRow[] = [];
-    let previousPrice: number | null = null;
-    for (const event of marketEvents.slice(0, 30)) {
-      const price = marketPriceFromFlows(
-        event.base_flow,
-        event.quote_flow,
-        config.base_decimals,
-        config.quote_decimals,
-      );
-      if (price === null) continue;
-
-      const sizeQuote = Math.abs(Number(event.quote_flow) / 10 ** config.quote_decimals);
-      const timestamp = new Date(event.created_at).getTime();
-      const trend: TradeListRow['trend'] =
-        previousPrice === null ? 'flat' : price > previousPrice ? 'up' : price < previousPrice ? 'down' : 'flat';
-      rows.push({
-        id: event.id,
-        price,
-        sizeQuote,
-        timestamp,
-        trend,
-      });
-      previousPrice = price;
-      if (rows.length >= 12) break;
-    }
-
-    return rows;
-  }, [marketEvents, config]);
 
   useEffect(() => {
     return () => {
@@ -487,13 +438,6 @@ export default function App() {
         clearTimeout(feedbackTimeoutRef.current);
       }
     };
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setClockNow(Date.now());
-    }, 1000);
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -521,9 +465,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isChartTimeframeReady) return;
-    AsyncStorage.setItem(CHART_TIMEFRAME_STORAGE_KEY, chartTimeframe).catch(() => {
-      // Ignore persistence errors; chart should remain functional.
-    });
+    AsyncStorage.setItem(CHART_TIMEFRAME_STORAGE_KEY, chartTimeframe).catch(() => {});
   }, [chartTimeframe, isChartTimeframeReady]);
 
   useEffect(() => {
@@ -545,16 +487,19 @@ export default function App() {
     setValidationError(null);
   };
 
-  const handleSliderChange = (percent: number) => {
-    if (!availableAmountAtoms || availableAmountAtoms <= 0n) {
-      setAmountInput('');
-      return;
-    }
+  const handleSliderChange = useCallback(
+    (percent: number) => {
+      if (!availableAmountAtoms || availableAmountAtoms <= 0n) {
+        setAmountInput('');
+        return;
+      }
 
-    const nextAmountAtoms = atomsFromPercent(availableAmountAtoms, percent);
-    setAmountInput(formatAtomsToInput(nextAmountAtoms, amountDecimals));
-    setValidationError(null);
-  };
+      const nextAmountAtoms = atomsFromPercent(availableAmountAtoms, percent);
+      setAmountInput(formatAtomsToInput(nextAmountAtoms, amountDecimals));
+      setValidationError(null);
+    },
+    [availableAmountAtoms, amountDecimals],
+  );
 
   const handleTimeframeChange = (next: ChartTimeframe) => {
     if (next === chartTimeframe) return;
@@ -646,16 +591,18 @@ export default function App() {
 
   return (
     <View className="flex-1" style={{ backgroundColor: uiColors.background }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 24 }} className="px-4 py-3">
-        <View className="mb-3 flex-row items-center justify-between">
-          <View>
-            <Text className="text-[#8f99c6] text-[24px] leading-[34px] font-semibold uppercase tracking-wide">
-              Mato
-            </Text>
-            {/* <Text className="text-white text-sm font-semibold">
-              {baseTicker}/{quoteTicker}
-            </Text> */}
-          </View>
+      {/* Sticky market header */}
+      <Pressable
+        onPress={() => Keyboard.dismiss()}
+        className="px-4 pt-3 pb-2 border-b"
+        style={{ backgroundColor: uiColors.background, borderBottomColor: uiColors.divider }}
+      >
+        <View className="mb-2 flex-row items-center justify-between">
+          <Image
+            source={require('../../assets/splash.png')}
+            style={{ width: 48, height: 48 }}
+            resizeMode="contain"
+          />
           <View className="flex-row items-center">
             {selectedAccount ? (
               <Text className="text-[#9ba5d2] text-xs mr-3">
@@ -667,10 +614,45 @@ export default function App() {
           </View>
         </View>
 
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center">
+            <Text className="text-white text-xl font-semibold mr-2">
+              {baseTicker}/{quoteTicker}
+            </Text>
+            <Text className="text-[#7f89ba] text-[10px]">Spot</Text>
+          </View>
+          <View className="flex-row items-center">
+            <Text className="text-white text-xl font-semibold">
+              {displayPrice !== null ? `$${displayPrice.toFixed(4)}` : '—'}
+            </Text>
+            {priceDelta !== null && priceDeltaPercent !== null && (
+              <View
+                className="ml-2 px-2 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: priceDelta >= 0 ? uiColors.successBg : uiColors.dangerBg,
+                }}
+              >
+                <Text
+                  className="text-[10px] font-semibold"
+                  style={{ color: priceDelta >= 0 ? uiColors.accentText : uiColors.dangerText }}
+                >
+                  {formatSignedNumber(priceDeltaPercent, 2)}%
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Pressable>
+
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 24, paddingTop: 8 }}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+      >
         {feedback && (
           <Pressable
             onPress={() => setFeedback(null)}
-            className="rounded-xl border px-3 py-2 mb-3"
+            className="border px-4 py-2 mb-3"
             style={{
               backgroundColor: feedback.type === 'error' ? uiColors.dangerBg : uiColors.successBg,
               borderColor: feedback.type === 'error' ? uiColors.dangerBorder : uiColors.successBorder,
@@ -682,72 +664,8 @@ export default function App() {
           </Pressable>
         )}
 
-        <View className="mb-3 px-1">
-          <View className="flex-row items-start justify-between">
-            <View>
-              <Text className="text-[#7f89ba] text-xs mb-1 uppercase tracking-wide">Market</Text>
-              <Text className="text-white text-[28px] leading-[32px] font-semibold">
-                {baseTicker}/{quoteTicker}
-              </Text>
-              <Text className="text-[#7f89ba] text-xs mt-1">Spot</Text>
-            </View>
-            <View className="items-end">
-              <Text className="text-white text-[30px] leading-[34px] font-semibold">
-                {displayPrice !== null ? `$${displayPrice.toFixed(4)}` : 'Loading...'}
-              </Text>
-              {priceDelta !== null && priceDeltaPercent !== null && (
-                <View
-                  className="mt-2 px-3 py-1 rounded-full border"
-                  style={{
-                    backgroundColor: priceDelta >= 0 ? uiColors.successBg : uiColors.dangerBg,
-                    borderColor: priceDelta >= 0 ? uiColors.successBorder : uiColors.dangerBorder,
-                  }}
-                >
-                  <Text
-                    className="text-xs font-semibold"
-                    style={{ color: priceDelta >= 0 ? uiColors.accentText : uiColors.dangerText }}
-                  >
-                    {formatSignedNumber(priceDelta, 4)} ({formatSignedNumber(priceDeltaPercent, 2)}%)
-                  </Text>
-                </View>
-              )}
-              {marketUpdateAgeSeconds !== null && (
-                <View
-                  className="mt-2 px-2 py-1 rounded-full border"
-                  style={{
-                    backgroundColor:
-                      marketUpdateFreshness === 'healthy'
-                        ? uiColors.successBg
-                        : marketUpdateFreshness === 'delayed'
-                          ? uiColors.warningBg
-                          : uiColors.dangerBg,
-                    borderColor:
-                      marketUpdateFreshness === 'healthy'
-                        ? uiColors.successBorder
-                        : marketUpdateFreshness === 'delayed'
-                          ? uiColors.warningBorder
-                          : uiColors.dangerBorder,
-                  }}
-                >
-                  <Text
-                    className="text-[10px]"
-                    style={{
-                      color:
-                        marketUpdateFreshness === 'healthy'
-                          ? uiColors.accentText
-                          : marketUpdateFreshness === 'delayed'
-                            ? uiColors.warningText
-                            : uiColors.dangerText,
-                    }}
-                  >
-                    {feedStatusLabel} • {marketUpdateAgeSeconds <= 1 ? 'just now' : `${marketUpdateAgeSeconds}s ago`}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          <View className="flex-row justify-between mt-3 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
+        <View className="mb-3 px-4">
+          <View className="flex-row justify-between">
             <View className="flex-1 pr-2 border-r" style={{ borderRightColor: uiColors.divider }}>
               <Text className="text-[#7380b4] text-[10px] uppercase">24h High</Text>
               <Text className="text-[#d7defa] text-xs font-semibold mt-0.5">
@@ -767,16 +685,10 @@ export default function App() {
               </Text>
             </View>
           </View>
-
-          {/* {config && (
-            <Text className="text-[#6f79a6] text-xs mt-3">
-              Base mint: {shortenAddress(config.base_mint)} • Quote mint: {shortenAddress(config.quote_mint)}
-            </Text>
-          )} */}
         </View>
 
         <View className="mb-4">
-          <View className="flex-row items-end border-b mb-2" style={{ borderBottomColor: uiColors.divider }}>
+          <View className="flex-row items-end border-b mb-2 px-4" style={{ borderBottomColor: uiColors.divider }}>
             {[
               { key: 'chart', label: 'Chart' },
               { key: 'orderBook', label: 'Order Book' },
@@ -798,7 +710,7 @@ export default function App() {
 
           {marketPanelTab === 'chart' && (
             <>
-              <View className="flex-row items-center justify-between mb-2">
+              <View className="flex-row items-center justify-between mb-2 px-4">
                 <Text className="text-white text-lg font-semibold">Chart</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View className="flex-row items-end">
@@ -823,15 +735,15 @@ export default function App() {
 
               {activeOhlcv && (
                 <View
-                  className="mb-2 border-y py-1.5"
+                  className="mb-2 border-y py-1.5 px-4"
                   style={{ borderTopColor: uiColors.divider, borderBottomColor: uiColors.divider }}
                 >
-                  <View className="flex-row flex-wrap">
-                    <Text className="text-[#b6bee3] text-xs mr-3">O {activeOhlcv.open.toFixed(4)}</Text>
-                    <Text className="text-[#b6bee3] text-xs mr-3">H {activeOhlcv.high.toFixed(4)}</Text>
-                    <Text className="text-[#b6bee3] text-xs mr-3">L {activeOhlcv.low.toFixed(4)}</Text>
-                    <Text className="text-[#b6bee3] text-xs mr-3">C {activeOhlcv.close.toFixed(4)}</Text>
-                    <Text className="text-[#b6bee3] text-xs">
+                  <View className="flex-row justify-between">
+                    <Text className="text-[#b6bee3] text-[11px]">O {activeOhlcv.open.toFixed(2)}</Text>
+                    <Text className="text-[#b6bee3] text-[11px]">H {activeOhlcv.high.toFixed(2)}</Text>
+                    <Text className="text-[#b6bee3] text-[11px]">L {activeOhlcv.low.toFixed(2)}</Text>
+                    <Text className="text-[#b6bee3] text-[11px]">C {activeOhlcv.close.toFixed(2)}</Text>
+                    <Text className="text-[#b6bee3] text-[11px]" numberOfLines={1}>
                       V {activeOhlcv.volume === null ? '—' : formatCompactNumber(activeOhlcv.volume)}
                     </Text>
                   </View>
@@ -848,7 +760,7 @@ export default function App() {
               ) : chartCandles.length === 0 && tradingViewCandles.length === 0 ? (
                 <Text className="text-[#8b93bd] text-sm">Not enough market updates to render chart yet.</Text>
               ) : (
-                <View className="rounded-xl overflow-hidden bg-[#0e1428] relative border border-[#1e2747]">
+                <View className="overflow-hidden bg-[#0e1428] relative">
                   {ENABLE_ADVANCED_CHART ? (
                     <TradingViewChart
                       data={tradingViewCandles}
@@ -873,7 +785,7 @@ export default function App() {
           )}
 
           {marketPanelTab === 'orderBook' && (
-            <View className="rounded-xl border border-[#1e2747] bg-[#0e1428] p-4">
+            <View className="bg-[#0e1428] p-4">
               <Text className="text-white text-base font-semibold mb-2">Order Book</Text>
               <Text className="text-[#8e97c2] text-sm">
                 Order book snapshots are not available in the current market feed yet.
@@ -882,45 +794,29 @@ export default function App() {
           )}
 
           {marketPanelTab === 'trades' && (
-            <View className="rounded-xl border border-[#1e2747] bg-[#0e1428] p-3">
-              <View className="flex-row justify-between mb-2">
-                <Text className="text-[#8e97c2] text-xs">Price</Text>
-                <Text className="text-[#8e97c2] text-xs">Size ({quoteTicker})</Text>
-                <Text className="text-[#8e97c2] text-xs">Time</Text>
-              </View>
-              {tradeRows.length === 0 ? (
-                <Text className="text-[#8e97c2] text-sm py-3">No recent trades available.</Text>
+            <View className="bg-[#0e1428] p-4">
+              {selectedAccount ? (
+                <ClosedPositionsList
+                  embedded
+                  positionAuthority={positionAuthority}
+                  marketId={MARKET_ID}
+                  baseTicker={baseTicker}
+                  quoteTicker={quoteTicker}
+                  baseDecimals={baseDecimals}
+                  quoteDecimals={quoteDecimals}
+                  limit={10}
+                />
               ) : (
-                <View>
-                  {tradeRows.map((row) => (
-                    <View key={row.id} className="flex-row justify-between py-1.5 border-b border-[#1a2340]">
-                      <Text
-                        className={`text-xs font-medium ${
-                          row.trend === 'up'
-                            ? 'text-[#8cf4bc]'
-                            : row.trend === 'down'
-                              ? 'text-[#ffb4be]'
-                              : 'text-[#d7defa]'
-                        }`}
-                      >
-                        {row.price.toFixed(4)}
-                      </Text>
-                      <Text className="text-[#d7defa] text-xs">{formatCompactNumber(row.sizeQuote)}</Text>
-                      <Text className="text-[#9ba5d2] text-xs">
-                        {new Date(row.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
+                <Text className="text-[#8e97c2] text-sm py-3">Connect wallet to view recent trades.</Text>
               )}
             </View>
           )}
 
-          {marketEventsError && <Text className="text-[#f48993] text-sm mt-2">{marketEventsError}</Text>}
-          {marketPriceError && <Text className="text-[#f48993] text-sm mt-2">{marketPriceError}</Text>}
+          {marketEventsError && <Text className="text-[#f48993] text-sm mt-2 px-4">{marketEventsError}</Text>}
+          {marketPriceError && <Text className="text-[#f48993] text-sm mt-2 px-4">{marketPriceError}</Text>}
         </View>
 
-        <View className="rounded-2xl bg-[#121a33] p-4">
+        <View className="bg-[#121a33] p-4">
           <Text className="text-white text-lg font-semibold mb-2">Create Order</Text>
 
           <View className="flex-row bg-[#0c1225] rounded-xl p-1 mb-3">
@@ -972,6 +868,24 @@ export default function App() {
             />
             {estimatedConversionText && (
               <Text className="text-[#8b93bd] text-xs mt-2">Estimated receive: {estimatedConversionText}</Text>
+            )}
+            {priceImpactPercent !== null && (
+              <View className="flex-row items-center mt-1">
+                <Text className="text-[#7380b4] text-xs">Price impact: </Text>
+                <Text
+                  className="text-xs font-medium"
+                  style={{
+                    color:
+                      priceImpactPercent < 1
+                        ? uiColors.accentText
+                        : priceImpactPercent < 5
+                          ? uiColors.warningText
+                          : uiColors.dangerText,
+                  }}
+                >
+                  {priceImpactPercent < 0.01 ? '<0.01' : priceImpactPercent.toFixed(2)}%
+                </Text>
+              </View>
             )}
             <View className="mt-3">
               <View className="flex-row items-center justify-between mb-2">
@@ -1056,7 +970,7 @@ export default function App() {
         </View>
 
         {selectedAccount && (
-          <View className="rounded-2xl bg-[#171b34] border border-[#2a2f53] p-4 mt-4">
+          <View className="bg-[#171b34] border-t border-b border-[#2a2f53] p-4 mt-4">
             <View className="flex-row items-end border-b mb-3" style={{ borderBottomColor: uiColors.divider }}>
               {[
                 { key: 'active', label: `Positions (${positions.length})` },
@@ -1127,7 +1041,6 @@ export default function App() {
         )}
       </ScrollView>
 
-      <StatusBar style="light" />
     </View>
   );
 }

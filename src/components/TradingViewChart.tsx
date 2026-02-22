@@ -4,8 +4,7 @@ import { WebView } from 'react-native-webview';
 import { getTradingViewChartHtml } from './tradingViewChartHtml';
 
 const { width } = Dimensions.get('window');
-const HORIZONTAL_PADDING = 16;
-const DEFAULT_WIDTH = width - HORIZONTAL_PADDING * 2;
+const DEFAULT_WIDTH = width;
 
 export interface TradingViewCandle {
   time: number;
@@ -47,7 +46,7 @@ export function TradingViewChart({ data, lastCandle = null, onCrosshairMove, hei
 
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', ({ window }) => {
-      const nextWidth = window.width - HORIZONTAL_PADDING * 2;
+      const nextWidth = window.width;
       setChartWidth(nextWidth);
       if (!isReady || !webViewRef.current) return;
 
@@ -115,7 +114,7 @@ export function TradingViewChart({ data, lastCandle = null, onCrosshairMove, hei
   };
 
   return (
-    <View className="bg-[#131722] rounded-xl overflow-hidden relative">
+    <View className="bg-[#131722] overflow-hidden relative">
       {!isReady && (
         <View className="absolute inset-0 items-center justify-center z-10 bg-[#131722]">
           <ActivityIndicator size="small" color="#94A3B8" />

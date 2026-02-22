@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import type { TradePosition } from '../hooks/useTradePositions';
 import type { StreamingMarketState } from '../hooks/useStreamingMarketState';
@@ -55,13 +56,14 @@ export function ActivePositionCard({
   onClose,
   streamingState,
 }: ActivePositionCardProps) {
+  const [expanded, setExpanded] = useState(false);
   const isBuy = position.isBuy;
   const depositedToken = isBuy ? quoteTicker : baseTicker;
   const depositedDecimals = isBuy ? quoteDecimals : baseDecimals;
   const swappedToken = isBuy ? baseTicker : quoteTicker;
   const swappedDecimals = isBuy ? baseDecimals : quoteDecimals;
   const sideLabel = isBuy ? 'Buy' : 'Sell';
-  const flowLabel = isBuy ? `${quoteTicker} -> ${baseTicker}` : `${baseTicker} -> ${quoteTicker}`;
+  const flowLabel = isBuy ? `${quoteTicker} → ${baseTicker}` : `${baseTicker} → ${quoteTicker}`;
 
   const amountAtoms = BigInt(position.amount.toString());
   const startSlot = toSlotNumber(position.startSlot);
@@ -75,6 +77,7 @@ export function ActivePositionCard({
   const spentAtoms = spentAtomsUncapped > amountAtoms ? amountAtoms : spentAtomsUncapped;
   const remainingAtoms = amountAtoms > spentAtoms ? amountAtoms - spentAtoms : 0n;
   const remainingPercent = amountAtoms > 0n ? Number((remainingAtoms * 10000n) / amountAtoms) / 100 : 0;
+  const progressPercent = Math.max(0, 100 - remainingPercent);
 
   let swappedEstimateAtoms: bigint | null = null;
   if (streamingState) {
@@ -108,75 +111,98 @@ export function ActivePositionCard({
       className="rounded-xl p-3 mb-2.5"
       style={{ borderColor: uiColors.border, backgroundColor: uiColors.surfaceAlt, borderWidth: 1 }}
     >
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center">
-          <View
-            className="px-2 py-0.5 rounded-md"
-            style={{ backgroundColor: isBuy ? uiColors.successBg : uiColors.dangerBg }}
-          >
-            <Text className="text-[10px] font-semibold" style={{ color: isBuy ? uiColors.accentText : uiColors.dangerText }}>
-              {sideLabel}
-            </Text>
+      <Pressable onPress={() => setExpanded((prev) => !prev)}>
+        <View className="flex-row items-center justify-between">
+          <View className="flex-row items-center flex-1">
+            <View
+              className="px-2 py-0.5 rounded-md"
+              style={{ backgroundColor: isBuy ? uiColors.successBg : uiColors.dangerBg }}
+            >
+              <Text className="text-[10px] font-semibold" style={{ color: isBuy ? uiColors.accentText : uiColors.dangerText }}>
+                {sideLabel}
+              </Text>
+            </View>
+            <Text className="text-[#9ea8d6] text-xs ml-2">{flowLabel}</Text>
           </View>
-          <Text className="text-[#9ea8d6] text-xs ml-2">{flowLabel}</Text>
-        </View>
-        {streamingState && <Text className="text-[#7d88b8] text-[10px]">Slot {currentSlot}</Text>}
-      </View>
-
-      <View className="mt-2 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
-        <View className="flex-row justify-between mb-1">
-          <View className="flex-1 pr-2">
-            <Text className="text-[#7380b4] text-[10px] uppercase">Deposited</Text>
-            <Text className="text-[#d7defa] text-xs font-medium">
+          <View className="flex-row items-center">
+            <Text className="text-[#d7defa] text-xs font-medium mr-2">
               {formatAtomsToDisplay(amountAtoms, depositedDecimals)} {depositedToken}
             </Text>
-          </View>
-          <View className="flex-1 pl-2">
-            <Text className="text-[#7380b4] text-[10px] uppercase">Remaining</Text>
-            <Text className="text-[#d7defa] text-xs font-medium">
-              {formatAtomsToDisplay(remainingAtoms, depositedDecimals)} {depositedToken}
-            </Text>
+            <Text className="text-[#7d88b8] text-[10px]">{expanded ? '▲' : '▼'}</Text>
           </View>
         </View>
-        <View className="flex-row justify-between mb-1">
-          <View className="flex-1 pr-2">
-            <Text className="text-[#7380b4] text-[10px] uppercase">Flow / Slot</Text>
-            <Text className="text-[#d7defa] text-xs font-medium">
-              {formatAtomsToDisplay(flowAtomsPerSlot, depositedDecimals)} {depositedToken}
-            </Text>
-          </View>
-          <View className="flex-1 pl-2">
-            <Text className="text-[#7380b4] text-[10px] uppercase">Est. Swapped</Text>
-            <Text className="text-[#d7defa] text-xs font-medium">
-              {swappedEstimateAtoms === null
-                ? '—'
-                : `${formatAtomsToDisplay(swappedEstimateAtoms, swappedDecimals)} ${swappedToken}`}
-            </Text>
-          </View>
-        </View>
-      </View>
 
-      <View className="mt-2 h-1.5 rounded-full bg-[#2a3258]">
-        <View
-          className="h-1.5 rounded-full"
-          style={{ backgroundColor: uiColors.accent, width: `${Math.max(0, 100 - remainingPercent)}%` }}
-        />
-      </View>
-      <View className="flex-row justify-between mt-1">
-        <Text className="text-[#8b93bd] text-[10px]">{remainingPercent.toFixed(2)}% remaining</Text>
-        <Text className="text-[#8b93bd] text-[10px]">
-          {position.publicKey.toBase58().slice(0, 6)}...{position.publicKey.toBase58().slice(-6)}
-        </Text>
-      </View>
-
-      <Pressable
-        onPress={onClose}
-        disabled={isClosing}
-        className="rounded-lg py-2.5 items-center mt-2"
-        style={{ backgroundColor: isClosing ? '#4a2d30' : uiColors.danger }}
-      >
-        <Text className="text-white font-semibold text-xs">{closeButtonLabel}</Text>
+        {!expanded && (
+          <View className="mt-2">
+            <View className="h-1.5 rounded-full bg-[#2a3258]">
+              <View
+                className="h-1.5 rounded-full"
+                style={{ backgroundColor: uiColors.accent, width: `${progressPercent}%` }}
+              />
+            </View>
+            <Text className="text-[#8b93bd] text-[10px] mt-1">{remainingPercent.toFixed(1)}% remaining</Text>
+          </View>
+        )}
       </Pressable>
+
+      {expanded && (
+        <>
+          <View className="mt-2 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
+            <View className="flex-row justify-between mb-1">
+              <View className="flex-1 pr-2">
+                <Text className="text-[#7380b4] text-[10px] uppercase">Deposited</Text>
+                <Text className="text-[#d7defa] text-xs font-medium">
+                  {formatAtomsToDisplay(amountAtoms, depositedDecimals)} {depositedToken}
+                </Text>
+              </View>
+              <View className="flex-1 pl-2">
+                <Text className="text-[#7380b4] text-[10px] uppercase">Remaining</Text>
+                <Text className="text-[#d7defa] text-xs font-medium">
+                  {formatAtomsToDisplay(remainingAtoms, depositedDecimals)} {depositedToken}
+                </Text>
+              </View>
+            </View>
+            <View className="flex-row justify-between mb-1">
+              <View className="flex-1 pr-2">
+                <Text className="text-[#7380b4] text-[10px] uppercase">Flow / Slot</Text>
+                <Text className="text-[#d7defa] text-xs font-medium">
+                  {formatAtomsToDisplay(flowAtomsPerSlot, depositedDecimals)} {depositedToken}
+                </Text>
+              </View>
+              <View className="flex-1 pl-2">
+                <Text className="text-[#7380b4] text-[10px] uppercase">Est. Swapped</Text>
+                <Text className="text-[#d7defa] text-xs font-medium">
+                  {swappedEstimateAtoms === null
+                    ? '—'
+                    : `${formatAtomsToDisplay(swappedEstimateAtoms, swappedDecimals)} ${swappedToken}`}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View className="mt-2 h-1.5 rounded-full bg-[#2a3258]">
+            <View
+              className="h-1.5 rounded-full"
+              style={{ backgroundColor: uiColors.accent, width: `${progressPercent}%` }}
+            />
+          </View>
+          <View className="flex-row justify-between mt-1">
+            <Text className="text-[#8b93bd] text-[10px]">{remainingPercent.toFixed(2)}% remaining</Text>
+            <Text className="text-[#8b93bd] text-[10px]">
+              {position.publicKey.toBase58().slice(0, 6)}...{position.publicKey.toBase58().slice(-6)}
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={onClose}
+            disabled={isClosing}
+            className="rounded-lg py-2.5 items-center mt-2"
+            style={{ backgroundColor: isClosing ? '#4a2d30' : uiColors.danger }}
+          >
+            <Text className="text-white font-semibold text-xs">{closeButtonLabel}</Text>
+          </Pressable>
+        </>
+      )}
     </View>
   );
 }

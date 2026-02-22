@@ -8,8 +8,26 @@
     },
     "name": "mato-mobile",
     "slug": "mato-mobile",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0b1020"
+    },
     "android": {
-      "package": "com.anonymous.kitexpouniwind"
+      "package": "com.anonymous.kitexpouniwind",
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0b1020"
+      }
+    },
+    "ios": {
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0b1020"
+      }
     }
   }
 }
