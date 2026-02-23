@@ -100,7 +100,8 @@ export function ActivePositionCard({
         }
       } else if (streamingState.marketBaseFlow > 0n) {
         staleAccumulator =
-          (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketQuoteFlow * staleSlotCount) / streamingState.marketBaseFlow;
+          (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketQuoteFlow * staleSlotCount) /
+          streamingState.marketBaseFlow;
       }
     }
 
@@ -120,7 +121,10 @@ export function ActivePositionCard({
               className="px-2 py-0.5 rounded-md"
               style={{ backgroundColor: isBuy ? uiColors.successBg : uiColors.dangerBg }}
             >
-              <Text className="text-[10px] font-semibold" style={{ color: isBuy ? uiColors.accentText : uiColors.dangerText }}>
+              <Text
+                className="text-[10px] font-semibold"
+                style={{ color: isBuy ? uiColors.accentText : uiColors.dangerText }}
+              >
                 {sideLabel}
               </Text>
             </View>
@@ -166,13 +170,13 @@ export function ActivePositionCard({
             </View>
             <View className="flex-row justify-between mb-1">
               <View className="flex-1 pr-2">
-                <Text className="text-[#7380b4] text-[10px] uppercase">Flow / Slot</Text>
+                <Text className="text-[#7380b4] text-[10px] uppercase">Flow</Text>
                 <Text className="text-[#d7defa] text-xs font-medium">
-                  {formatAtomsToDisplay(flowAtomsPerSlot, depositedDecimals)} {depositedToken}
+                  {formatAtomsToDisplay(flowAtomsPerSlot, depositedDecimals)} {depositedToken}/Slot
                 </Text>
               </View>
               <View className="flex-1 pl-2">
-                <Text className="text-[#7380b4] text-[10px] uppercase">Est. Swapped</Text>
+                <Text className="text-[#7380b4] text-[10px] uppercase">Swapped</Text>
                 <Text className="text-[#d7defa] text-xs font-medium">
                   {swappedEstimateAtoms === null
                     ? '—'
