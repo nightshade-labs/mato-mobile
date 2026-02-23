@@ -146,9 +146,10 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
   const consumedAtoms = subtractFloorZero(depositedAtoms, remainingAtoms);
   const swappedAtoms = event.swapped_amount;
   const feeAtoms = event.fee_amount;
+  const receivedAtoms = subtractFloorZero(swappedAtoms, feeAtoms);
 
-  const quoteNumeratorAtoms = isBuy ? consumedAtoms : swappedAtoms;
-  const baseDenominatorAtoms = isBuy ? swappedAtoms : consumedAtoms;
+  const quoteNumeratorAtoms = isBuy ? consumedAtoms : receivedAtoms;
+  const baseDenominatorAtoms = isBuy ? receivedAtoms : consumedAtoms;
   const effectivePrice = computeEffectivePrice(quoteNumeratorAtoms, quoteDecimals, baseDenominatorAtoms, baseDecimals);
   const effectivePriceLabel = isBuy ? 'Effective price paid' : 'Effective price received';
 
@@ -197,7 +198,7 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
             </Text>
             <Text className="text-[#7380b4] text-[10px]">→</Text>
             <Text className="text-[#d7defa] text-xs font-medium">
-              {formatAtomsToDisplay(swappedAtoms, swappedDecimals)} {swappedToken}
+              {formatAtomsToDisplay(receivedAtoms, swappedDecimals)} {swappedToken}
             </Text>
             {effectivePrice !== null && (
               <Text className="text-[#8b93bd] text-[10px]">@ {formatPrice(effectivePrice)}</Text>
@@ -225,7 +226,7 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
               <View className="flex-1 pr-2">
                 <Text className="text-[#7380b4] text-[10px] uppercase">Received</Text>
                 <Text className="text-[#d7defa] text-xs font-medium">
-                  {formatAtomsToDisplay(swappedAtoms, swappedDecimals)} {swappedToken}
+                  {formatAtomsToDisplay(receivedAtoms, swappedDecimals)} {swappedToken}
                 </Text>
               </View>
               <View className="flex-1 pl-2">
