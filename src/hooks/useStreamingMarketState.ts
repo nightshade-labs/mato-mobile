@@ -7,6 +7,7 @@ import { queryKeys } from '../query/keys';
 
 export interface StreamingMarketState {
   currentSlot: number;
+  endSlotInterval: number;
   marketBaseFlow: bigint;
   marketQuoteFlow: bigint;
   bookkeepingBasePerQuote: bigint;
@@ -32,6 +33,7 @@ export function useStreamingMarketState(market: PublicKey, enabled: boolean = tr
 
       return {
         currentSlot,
+        endSlotInterval: Number(marketAccount.endSlotInterval.toString()),
         marketBaseFlow: BigInt(marketAccount.baseFlow.toString()),
         marketQuoteFlow: BigInt(marketAccount.quoteFlow.toString()),
         bookkeepingBasePerQuote: BigInt(bookkeepingAccount.basePerQuote.toString()),

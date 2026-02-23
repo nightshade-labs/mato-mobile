@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import type { PublicKey } from '@solana/web3.js';
 import { Pressable, Text, View } from 'react-native';
+import { useEndSlotBookkeepingSnapshot } from '../hooks/useEndSlotBookkeepingSnapshot';
 import type { TradePosition } from '../hooks/useTradePositions';
 import type { StreamingMarketState } from '../hooks/useStreamingMarketState';
 import { uiColors } from '../theme/colors';
 
 interface ActivePositionCardProps {
+  market: PublicKey;
   position: TradePosition;
   baseTicker: string;
   quoteTicker: string;
@@ -46,6 +49,7 @@ function toSlotNumber(value: { toString(): string }): number {
 }
 
 export function ActivePositionCard({
+  market,
   position,
   baseTicker,
   quoteTicker,
@@ -73,6 +77,7 @@ export function ActivePositionCard({
   const flowAtomsPerSlot = amountAtoms / durationSlotsBigInt;
 
   const currentSlot = streamingState ? clampToRange(streamingState.currentSlot, startSlot, endSlot) : startSlot;
+  const hasPositionEnded = streamingState ? streamingState.currentSlot > endSlot : false;
   const elapsedSlots = clampToRange(currentSlot - startSlot, 0, durationSlots);
   const elapsedSlotsBigInt = BigInt(elapsedSlots);
   const spentAtomsUncapped = (amountAtoms * elapsedSlotsBigInt) / durationSlotsBigInt;
@@ -80,33 +85,45 @@ export function ActivePositionCard({
   const remainingAtoms = amountAtoms > spentAtoms ? amountAtoms - spentAtoms : 0n;
   const remainingPercent = amountAtoms > 0n ? Number((remainingAtoms * 10000n) / amountAtoms) / 100 : 0;
   const progressPercent = Math.max(0, 100 - remainingPercent);
+  const { snapshot: endSlotBookkeepingSnapshot } = useEndSlotBookkeepingSnapshot({
+    market,
+    endSlot,
+    endSlotInterval: streamingState?.endSlotInterval ?? null,
+    isBuy,
+    enabled: hasPositionEnded,
+  });
 
   let swappedEstimateAtoms: bigint | null = null;
   if (streamingState) {
     const bookkeepingSnapshot = BigInt(position.bookkeepingSnapshot.toString());
     const liveBookkeeping = isBuy ? streamingState.bookkeepingBasePerQuote : streamingState.bookkeepingQuotePerBase;
-    const bookkeepingDelta = liveBookkeeping > bookkeepingSnapshot ? liveBookkeeping - bookkeepingSnapshot : 0n;
+    const effectiveBookkeeping = hasPositionEnded ? endSlotBookkeepingSnapshot : liveBookkeeping;
 
-    const staleSlots = Math.max(0, currentSlot - streamingState.bookkeepingLastUpdateSlot);
-    let staleAccumulator = 0n;
+    if (effectiveBookkeeping !== null) {
+      const bookkeepingDelta = effectiveBookkeeping > bookkeepingSnapshot ? effectiveBookkeeping - bookkeepingSnapshot : 0n;
 
-    if (staleSlots > 0) {
-      const staleSlotCount = BigInt(staleSlots);
-      if (isBuy) {
-        if (streamingState.marketQuoteFlow > 0n) {
-          staleAccumulator =
-            (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketBaseFlow * staleSlotCount) /
-            streamingState.marketQuoteFlow;
+      let staleAccumulator = 0n;
+      if (!hasPositionEnded) {
+        const staleSlots = Math.max(0, currentSlot - streamingState.bookkeepingLastUpdateSlot);
+        if (staleSlots > 0) {
+          const staleSlotCount = BigInt(staleSlots);
+          if (isBuy) {
+            if (streamingState.marketQuoteFlow > 0n) {
+              staleAccumulator =
+                (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketBaseFlow * staleSlotCount) /
+                streamingState.marketQuoteFlow;
+            }
+          } else if (streamingState.marketBaseFlow > 0n) {
+            staleAccumulator =
+              (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketQuoteFlow * staleSlotCount) /
+              streamingState.marketBaseFlow;
+          }
         }
-      } else if (streamingState.marketBaseFlow > 0n) {
-        staleAccumulator =
-          (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketQuoteFlow * staleSlotCount) /
-          streamingState.marketBaseFlow;
       }
-    }
 
-    const accumulatedPrice = bookkeepingDelta + staleAccumulator;
-    swappedEstimateAtoms = (amountAtoms * accumulatedPrice) / (durationSlotsBigInt * BOOKKEEPING_PRECISION_FACTOR);
+      const accumulatedPrice = bookkeepingDelta + staleAccumulator;
+      swappedEstimateAtoms = (amountAtoms * accumulatedPrice) / (durationSlotsBigInt * BOOKKEEPING_PRECISION_FACTOR);
+    }
   }
 
   return (

@@ -970,6 +970,7 @@ export default function App() {
                     {positions.map((position) => (
                       <ActivePositionCard
                         key={position.publicKey.toBase58()}
+                        market={MARKET}
                         position={position}
                         baseTicker={baseTicker}
                         quoteTicker={quoteTicker}
