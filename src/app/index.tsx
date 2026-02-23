@@ -889,7 +889,7 @@ export default function App() {
 
           <View className="mb-3">
             <Text className="text-[#8b93bd] text-sm mb-2">Duration</Text>
-            <Text className="text-[#b6bee3] text-xs mb-2">Choose how long the order remains active.</Text>
+            <Text className="text-[#b6bee3] text-xs mb-2">Choose how long the order will stream.</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View className="flex-row">
                 {DURATION_OPTIONS.map((option) => (
@@ -936,7 +936,7 @@ export default function App() {
               <Text className="text-white font-semibold text-base">{statusLabel}</Text>
             </Pressable>
           ) : (
-            <Text className="text-[#8e97c2] text-sm">Connect wallet from top bar to place orders.</Text>
+            <ConnectButton />
           )}
         </View>
 
