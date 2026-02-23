@@ -69,11 +69,13 @@ export function ActivePositionCard({
   const startSlot = toSlotNumber(position.startSlot);
   const endSlot = toSlotNumber(position.endSlot);
   const durationSlots = Math.max(1, endSlot - startSlot);
-  const flowAtomsPerSlot = amountAtoms / BigInt(durationSlots);
+  const durationSlotsBigInt = BigInt(durationSlots);
+  const flowAtomsPerSlot = amountAtoms / durationSlotsBigInt;
 
   const currentSlot = streamingState ? clampToRange(streamingState.currentSlot, startSlot, endSlot) : startSlot;
-  const elapsedSlots = Math.max(0, currentSlot - startSlot);
-  const spentAtomsUncapped = flowAtomsPerSlot * BigInt(elapsedSlots);
+  const elapsedSlots = clampToRange(currentSlot - startSlot, 0, durationSlots);
+  const elapsedSlotsBigInt = BigInt(elapsedSlots);
+  const spentAtomsUncapped = (amountAtoms * elapsedSlotsBigInt) / durationSlotsBigInt;
   const spentAtoms = spentAtomsUncapped > amountAtoms ? amountAtoms : spentAtomsUncapped;
   const remainingAtoms = amountAtoms > spentAtoms ? amountAtoms - spentAtoms : 0n;
   const remainingPercent = amountAtoms > 0n ? Number((remainingAtoms * 10000n) / amountAtoms) / 100 : 0;
@@ -103,7 +105,7 @@ export function ActivePositionCard({
     }
 
     const accumulatedPrice = bookkeepingDelta + staleAccumulator;
-    swappedEstimateAtoms = (flowAtomsPerSlot * accumulatedPrice) / BOOKKEEPING_PRECISION_FACTOR;
+    swappedEstimateAtoms = (amountAtoms * accumulatedPrice) / (durationSlotsBigInt * BOOKKEEPING_PRECISION_FACTOR);
   }
 
   return (
