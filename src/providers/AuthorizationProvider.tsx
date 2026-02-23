@@ -87,12 +87,27 @@ export function AuthorizationProvider({ children }: { children: ReactNode }) {
   const authorizeSession = useCallback(
     async (wallet: AuthorizeAPI): Promise<Account> => {
       const cachedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+      let result: AuthorizationResult;
 
-      const result = await wallet.authorize({
-        identity: APP_IDENTITY,
-        chain: CLUSTER,
-        auth_token: cachedToken ?? undefined,
-      });
+      try {
+        result = await wallet.authorize({
+          identity: APP_IDENTITY,
+          chain: CLUSTER,
+          auth_token: cachedToken ?? undefined,
+        });
+      } catch (error) {
+        // Some wallets reject stale tokens after app/wallet updates.
+        // Retry once without auth token to recover automatically.
+        if (!cachedToken) {
+          throw error;
+        }
+
+        await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+        result = await wallet.authorize({
+          identity: APP_IDENTITY,
+          chain: CLUSTER,
+        });
+      }
 
       const auth = await handleAuthorizationResult(result);
       return auth.selectedAccount;
