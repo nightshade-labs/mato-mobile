@@ -152,6 +152,7 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
   const baseDenominatorAtoms = isBuy ? receivedAtoms : consumedAtoms;
   const effectivePrice = computeEffectivePrice(quoteNumeratorAtoms, quoteDecimals, baseDenominatorAtoms, baseDecimals);
   const effectivePriceLabel = isBuy ? 'Effective price paid' : 'Effective price received';
+  const consumedLabel = isBuy ? 'Actually Spent' : 'Actually Sold';
 
   const handleOpenTx = () => {
     if (event.signature) {
@@ -216,7 +217,7 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
                 </Text>
               </View>
               <View className="flex-1 pl-2">
-                <Text className="text-[#7380b4] text-[10px] uppercase">Actually Swapped</Text>
+                <Text className="text-[#7380b4] text-[10px] uppercase">{consumedLabel}</Text>
                 <Text className="text-[#d7defa] text-xs font-medium">
                   {formatAtomsToDisplay(consumedAtoms, depositDecimals)} {depositToken}
                 </Text>
