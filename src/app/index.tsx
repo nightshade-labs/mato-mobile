@@ -344,6 +344,10 @@ export default function App() {
     if (!amountAtoms || amountAtoms <= 0n) return null;
     return Number(amountAtoms) / 10 ** amountDecimals;
   }, [amountAtoms, amountDecimals]);
+  const activePositionsNewestFirst = useMemo(
+    () => [...positions].sort((a, b) => b.id.cmp(a.id)),
+    [positions],
+  );
 
   const estimatedConversionText = useMemo(() => {
     if (!amountUiValue || !displayPrice || displayPrice <= 0) return null;
@@ -967,7 +971,7 @@ export default function App() {
                   <Text className="text-[#8b93bd] text-sm">No active positions.</Text>
                 ) : (
                   <View>
-                    {positions.map((position) => (
+                    {activePositionsNewestFirst.map((position) => (
                       <ActivePositionCard
                         key={position.publicKey.toBase58()}
                         market={MARKET}
