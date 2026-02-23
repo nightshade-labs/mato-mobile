@@ -366,7 +366,7 @@ export default function App() {
 
     if (side === 'buy') {
       if (streamingState.marketQuoteFlow <= 0n) return null;
-      return (Number(userFlowPerSlot) / (Number(streamingState.marketQuoteFlow) * PRECISION_FACTOR)) * 100;
+      return (Number(userFlowPerSlot) / (Number(streamingState.marketQuoteFlow) / PRECISION_FACTOR)) * 100;
     }
     if (streamingState.marketBaseFlow <= 0n) return null;
     return (
@@ -847,14 +847,14 @@ export default function App() {
                   className="text-xs font-medium"
                   style={{
                     color:
-                      priceImpactPercent < 1
+                      priceImpactPercent < 0.1
                         ? uiColors.accentText
-                        : priceImpactPercent < 5
+                        : priceImpactPercent < 1
                           ? uiColors.warningText
                           : uiColors.dangerText,
                   }}
                 >
-                  {priceImpactPercent < 0.01 ? '<0.01' : priceImpactPercent.toFixed(2)}%
+                  {priceImpactPercent < 0.001 ? '<0.001' : priceImpactPercent.toFixed(3)}%
                 </Text>
               </View>
             )}
