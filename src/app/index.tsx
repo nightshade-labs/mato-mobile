@@ -14,14 +14,14 @@ import { useTradePositions } from '../hooks/useTradePositions';
 import { useClosePosition } from '../hooks/useClosePosition';
 import { useStreamingMarketState } from '../hooks/useStreamingMarketState';
 import { useMarketUpdates } from '../integrations/supabase/useMarketUpdates';
-import { aggregateCandles } from '../utils/candles';
+import { aggregateCandles, aggregateTradingViewCandles } from '../utils/candles';
 import { ConnectButton } from '../components/ConnectButton';
 import { PercentageSlider } from '../components/PercentageSlider';
 import { ClosedPositionsList } from '../components/ClosedPositionsList';
 import { ActivePositionCard } from '../components/ActivePositionCard';
 import { CandleChart } from '../components/CandleChart';
 import { TradingViewChart } from '../components/TradingViewChart';
-import type { TradingViewCandle, TradingViewCrosshairData } from '../components/TradingViewChart';
+import type { TradingViewCrosshairData } from '../components/TradingViewChart';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import type { MarketConfigRow } from '../integrations/supabase/types';
 import { uiColors } from '../theme/colors';
@@ -140,47 +140,6 @@ function formatCrosshairTimeLabel(value: number | string | null): string | null 
   });
 }
 
-function aggregateTradingViewCandles(
-  events: { created_at: string; base_flow: bigint; quote_flow: bigint }[],
-  intervalMs: number,
-  baseDecimals: number,
-  quoteDecimals: number,
-): TradingViewCandle[] {
-  const bucketMap = new Map<number, number[]>();
-  const bucketVolumeMap = new Map<number, number>();
-
-  for (const event of events) {
-    const price = marketPriceFromFlows(event.base_flow, event.quote_flow, baseDecimals, quoteDecimals);
-    if (price === null) continue;
-
-    const timestampMs = new Date(event.created_at).getTime();
-    const bucketMs = Math.floor(timestampMs / intervalMs) * intervalMs;
-    const prices = bucketMap.get(bucketMs);
-    if (prices) {
-      prices.push(price);
-    } else {
-      bucketMap.set(bucketMs, [price]);
-    }
-
-    const quoteVolume = Math.abs(Number(event.quote_flow) / 10 ** quoteDecimals);
-    bucketVolumeMap.set(bucketMs, (bucketVolumeMap.get(bucketMs) ?? 0) + quoteVolume);
-  }
-
-  const candles: TradingViewCandle[] = [];
-  for (const [bucketMs, prices] of bucketMap) {
-    candles.push({
-      time: Math.floor(bucketMs / 1000),
-      open: prices[0],
-      high: Math.max(...prices),
-      low: Math.min(...prices),
-      close: prices[prices.length - 1],
-      volume: bucketVolumeMap.get(bucketMs) ?? 0,
-    });
-  }
-
-  return candles.sort((a, b) => a.time - b.time);
-}
-
 function sanitizeAmountInput(raw: string): string {
   const normalized = raw.replace(/,/g, '.').replace(/[^\d.]/g, '');
   const [whole, ...fractionParts] = normalized.split('.');
@@ -229,6 +188,9 @@ export default function App() {
     events: marketEvents,
     loading: marketEventsLoading,
     error: marketEventsError,
+    loadMoreHistory,
+    loadingMoreHistory,
+    hasMoreHistory,
   } = useMarketUpdates({
     marketId: MARKET_ID,
     limit: 600,
@@ -506,6 +468,10 @@ export default function App() {
     setChartTimeframe(next);
   };
 
+  const handleLoadMoreMarketHistory = useCallback(() => {
+    void loadMoreHistory();
+  }, [loadMoreHistory]);
+
   const pushFeedback = useCallback((type: FeedbackType, message: string) => {
     if (feedbackTimeoutRef.current) {
       clearTimeout(feedbackTimeoutRef.current);
@@ -766,6 +732,9 @@ export default function App() {
                       data={tradingViewCandles}
                       lastCandle={latestTradingViewCandle}
                       onCrosshairMove={setCrosshairData}
+                      onRequestMoreHistory={handleLoadMoreMarketHistory}
+                      hasMoreHistory={hasMoreHistory}
+                      loadingMoreHistory={loadingMoreHistory}
                       height={320}
                     />
                   ) : (

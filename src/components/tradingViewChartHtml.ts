@@ -44,6 +44,17 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
       var volumeSeries = null;
       var isReady = false;
       var pendingData = null;
+      var hasInitialData = false;
+      var currentDataLength = 0;
+      var currentFirstTime = null;
+      var currentLastTime = null;
+      var HISTORY_LOAD_THRESHOLD_BARS = 20;
+      var HISTORY_REQUEST_DEBOUNCE_MS = 600;
+      var historyState = {
+        hasMore: true,
+        loading: false,
+        lastRequestAt: 0,
+      };
       var container = document.getElementById('chart-container');
       var loadingEl = document.getElementById('loading');
 
@@ -51,6 +62,19 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
         if (window.ReactNativeWebView) {
           window.ReactNativeWebView.postMessage(JSON.stringify(payload));
         }
+      }
+
+      function maybeRequestMoreHistory(logicalRange) {
+        if (!logicalRange || typeof logicalRange.from !== 'number') return;
+        if (!historyState.hasMore || historyState.loading) return;
+        if (logicalRange.from > HISTORY_LOAD_THRESHOLD_BARS) return;
+
+        var now = Date.now();
+        if (now - historyState.lastRequestAt < HISTORY_REQUEST_DEBOUNCE_MS) return;
+
+        historyState.lastRequestAt = now;
+        historyState.loading = true;
+        postToRN({ type: 'LOAD_MORE_HISTORY' });
       }
 
       function initChart() {
@@ -118,12 +142,12 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
           });
 
           candleSeries = chart.addCandlestickSeries({
-            upColor: '#26a69a',
-            downColor: '#ef5350',
-            borderUpColor: '#26a69a',
-            borderDownColor: '#ef5350',
-            wickUpColor: '#26a69a',
-            wickDownColor: '#ef5350',
+            upColor: '#22c55e',
+            downColor: '#ef4444',
+            borderUpColor: '#22c55e',
+            borderDownColor: '#ef4444',
+            wickUpColor: '#22c55e',
+            wickDownColor: '#ef4444',
             priceLineVisible: true,
             lastValueVisible: true,
           });
@@ -169,6 +193,10 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
             });
           });
 
+          chart.timeScale().subscribeVisibleLogicalRangeChange(function(range) {
+            maybeRequestMoreHistory(range);
+          });
+
           isReady = true;
           loadingEl.style.display = 'none';
           postToRN({ type: 'CHART_READY' });
@@ -205,6 +233,11 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
             };
           });
 
+          var previousRange = chart.timeScale().getVisibleLogicalRange();
+          var previousLength = currentDataLength;
+          var previousFirstTime = currentFirstTime;
+          var previousLastTime = currentLastTime;
+
           candleSeries.setData(formattedCandles);
 
           var formattedVolumes = candles.map(function(c) {
@@ -212,11 +245,33 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
             return {
               time: Number(c.time),
               value: Number(c.volume || 0),
-              color: isUp ? 'rgba(38, 166, 154, 0.6)' : 'rgba(239, 83, 80, 0.6)',
+              color: isUp ? 'rgba(34, 197, 94, 0.45)' : 'rgba(239, 68, 68, 0.45)',
             };
           });
           volumeSeries.setData(formattedVolumes);
-          chart.timeScale().fitContent();
+
+          currentDataLength = formattedCandles.length;
+          currentFirstTime = formattedCandles[0].time;
+          currentLastTime = formattedCandles[formattedCandles.length - 1].time;
+
+          var prependedHistory =
+            previousLength > 0 &&
+            currentDataLength > previousLength &&
+            previousFirstTime !== null &&
+            currentFirstTime < previousFirstTime &&
+            currentLastTime === previousLastTime;
+
+          if (prependedHistory && previousRange && typeof previousRange.from === 'number') {
+            var barsAdded = currentDataLength - previousLength;
+            chart.timeScale().setVisibleLogicalRange({
+              from: previousRange.from + barsAdded,
+              to: previousRange.to + barsAdded,
+            });
+          } else if (!hasInitialData) {
+            chart.timeScale().fitContent();
+          }
+
+          hasInitialData = true;
         } catch (e) {
           postToRN({
             type: 'CHART_ERROR',
@@ -243,7 +298,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
             volumeSeries.update({
               time: normalized.time,
               value: Number(candle.volume || 0),
-              color: isUp ? 'rgba(38, 166, 154, 0.6)' : 'rgba(239, 83, 80, 0.6)',
+              color: isUp ? 'rgba(34, 197, 94, 0.45)' : 'rgba(239, 68, 68, 0.45)',
             });
           }
         } catch (_) {}
@@ -256,6 +311,11 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
           var height = parseInt(data.height, 10) || ${chartHeight};
           chart.applyOptions({ width: width, height: height });
         } catch (_) {}
+      }
+
+      function handleHistoryStatus(data) {
+        historyState.hasMore = data.hasMore !== false;
+        historyState.loading = Boolean(data.loading);
       }
 
       function handleRNMessage(event) {
@@ -271,6 +331,9 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
               break;
             case 'RESIZE':
               handleResize(message);
+              break;
+            case 'HISTORY_STATUS':
+              handleHistoryStatus(message);
               break;
             default:
               break;

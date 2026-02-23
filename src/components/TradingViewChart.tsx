@@ -28,6 +28,9 @@ interface TradingViewChartProps {
   data: TradingViewCandle[];
   lastCandle?: TradingViewCandle | null;
   onCrosshairMove?: (point: TradingViewCrosshairData | null) => void;
+  onRequestMoreHistory?: () => void;
+  hasMoreHistory?: boolean;
+  loadingMoreHistory?: boolean;
   height?: number;
 }
 
@@ -35,9 +38,18 @@ type WebViewInboundMessage =
   | { type: 'CHART_READY' }
   | { type: 'CHART_ERROR'; message?: string }
   | { type: 'CROSSHAIR_MOVE'; data?: TradingViewCrosshairData }
-  | { type: 'CROSSHAIR_CLEAR' };
+  | { type: 'CROSSHAIR_CLEAR' }
+  | { type: 'LOAD_MORE_HISTORY' };
 
-export function TradingViewChart({ data, lastCandle = null, onCrosshairMove, height = 320 }: TradingViewChartProps) {
+export function TradingViewChart({
+  data,
+  lastCandle = null,
+  onCrosshairMove,
+  onRequestMoreHistory,
+  hasMoreHistory = true,
+  loadingMoreHistory = false,
+  height = 320,
+}: TradingViewChartProps) {
   const webViewRef = useRef<WebView>(null);
   const [isReady, setIsReady] = useState(false);
   const [chartError, setChartError] = useState<string | null>(null);
@@ -76,6 +88,18 @@ export function TradingViewChart({ data, lastCandle = null, onCrosshairMove, hei
   }, [data, isReady]);
 
   useEffect(() => {
+    if (!isReady || !webViewRef.current) return;
+
+    webViewRef.current.postMessage(
+      JSON.stringify({
+        type: 'HISTORY_STATUS',
+        hasMore: hasMoreHistory,
+        loading: loadingMoreHistory,
+      }),
+    );
+  }, [hasMoreHistory, isReady, loadingMoreHistory]);
+
+  useEffect(() => {
     if (!isReady || !webViewRef.current || !lastCandle) return;
     const candleKey = `${lastCandle.time}-${lastCandle.close}-${lastCandle.volume}`;
     if (lastCandleRef.current === candleKey) return;
@@ -107,6 +131,10 @@ export function TradingViewChart({ data, lastCandle = null, onCrosshairMove, hei
       }
       if (message.type === 'CROSSHAIR_CLEAR' && onCrosshairMove) {
         onCrosshairMove(null);
+        return;
+      }
+      if (message.type === 'LOAD_MORE_HISTORY' && onRequestMoreHistory) {
+        onRequestMoreHistory();
       }
     } catch {
       setChartError('Invalid chart response');
