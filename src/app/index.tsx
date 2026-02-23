@@ -31,10 +31,12 @@ type OrderSide = 'buy' | 'sell';
 const MARKET_ID = 1;
 const MARKET = resolver.marketPda(new BN(MARKET_ID));
 const SLOT_DURATION_SECONDS = 0.4;
-const MIN_DURATION_SECONDS = 5 * 60;
+const MIN_DURATION_SECONDS = 1 * 60;
 const MAX_DURATION_SECONDS = 365 * 24 * 60 * 60;
+const PRECISION_FACTOR = 1000000000;
 
 const DURATION_OPTIONS = [
+  { label: '1m', seconds: 1 * 60 },
   { label: '5m', seconds: 5 * 60 },
   { label: '10m', seconds: 10 * 60 },
   { label: '30m', seconds: 30 * 60 },
@@ -344,10 +346,7 @@ export default function App() {
     if (!amountAtoms || amountAtoms <= 0n) return null;
     return Number(amountAtoms) / 10 ** amountDecimals;
   }, [amountAtoms, amountDecimals]);
-  const activePositionsNewestFirst = useMemo(
-    () => [...positions].sort((a, b) => b.id.cmp(a.id)),
-    [positions],
-  );
+  const activePositionsNewestFirst = useMemo(() => [...positions].sort((a, b) => b.id.cmp(a.id)), [positions]);
 
   const estimatedConversionText = useMemo(() => {
     if (!amountUiValue || !displayPrice || displayPrice <= 0) return null;
@@ -367,10 +366,13 @@ export default function App() {
 
     if (side === 'buy') {
       if (streamingState.marketQuoteFlow <= 0n) return null;
-      return (Number(userFlowPerSlot) / Number(streamingState.marketQuoteFlow)) * 100;
+      return (Number(userFlowPerSlot) / (Number(streamingState.marketQuoteFlow) * PRECISION_FACTOR)) * 100;
     }
     if (streamingState.marketBaseFlow <= 0n) return null;
-    return (Number(userFlowPerSlot) / Number(streamingState.marketBaseFlow + userFlowPerSlot)) * 100;
+    return (
+      (Number(userFlowPerSlot) / (Number(streamingState.marketBaseFlow) / PRECISION_FACTOR + Number(userFlowPerSlot))) *
+      100
+    );
   }, [amountAtoms, durationSeconds, streamingState, side]);
 
   const activeOhlcv = useMemo(() => {
@@ -568,11 +570,7 @@ export default function App() {
         style={{ backgroundColor: uiColors.background, borderBottomColor: uiColors.divider }}
       >
         <View className="mb-2 flex-row items-center justify-between">
-          <Image
-            source={require('../../assets/splash.png')}
-            style={{ width: 48, height: 48 }}
-            resizeMode="contain"
-          />
+          <Image source={require('../../assets/splash.png')} style={{ width: 48, height: 48 }} resizeMode="contain" />
           <View className="flex-row items-center">
             {selectedAccount ? (
               <Text className="text-[#9ba5d2] text-xs mr-3">
@@ -1014,7 +1012,6 @@ export default function App() {
           </View>
         )}
       </ScrollView>
-
     </View>
   );
 }
