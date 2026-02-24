@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 // StatusBar is configured in _layout.tsx
 import { ActivityIndicator, Image, Keyboard, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import type { TextStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BN from 'bn.js';
 import { PublicKey } from '@solana/web3.js';
@@ -73,6 +74,9 @@ interface FeedbackMessage {
   type: FeedbackType;
   message: string;
 }
+
+const TABULAR_NUMS: TextStyle = { fontVariant: ['tabular-nums'] };
+const OVERLINE: TextStyle = { textTransform: 'uppercase', letterSpacing: 0.8 };
 
 function shortenAddress(value: string | null | undefined): string {
   if (!value) return 'N/A';
@@ -569,14 +573,14 @@ export default function App() {
       {/* Sticky market header */}
       <Pressable
         onPress={() => Keyboard.dismiss()}
-        className="px-4 pt-3 pb-2 border-b"
+        className="px-4 pt-4 pb-3 border-b"
         style={{ backgroundColor: uiColors.background, borderBottomColor: uiColors.divider }}
       >
-        <View className="mb-2 flex-row items-center justify-between">
+        <View className="mb-3 flex-row items-center justify-between">
           <Image source={require('../../assets/splash.png')} style={{ width: 48, height: 48 }} resizeMode="contain" />
           <View className="flex-row items-center">
             {selectedAccount ? (
-              <Text className="text-xs mr-3" style={{ color: uiColors.textMuted }}>
+              <Text className="text-[11px] font-medium mr-3" style={{ color: uiColors.textMuted }}>
                 {selectedAccount.publicKey.toBase58().slice(0, 4)}...
                 {selectedAccount.publicKey.toBase58().slice(-4)}
               </Text>
@@ -587,27 +591,27 @@ export default function App() {
 
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center">
-            <Text className="text-white text-xl font-semibold mr-2">
+            <Text className="text-white text-xl font-semibold tracking-tight leading-7 mr-2">
               {baseTicker}/{quoteTicker}
             </Text>
-            <Text className="text-[10px]" style={{ color: uiColors.textSubtle }}>
+            <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
               Spot
             </Text>
           </View>
           <View className="flex-row items-center">
-            <Text className="text-white text-xl font-semibold">
+            <Text className="text-white text-[26px] font-semibold leading-8" style={TABULAR_NUMS}>
               {displayPrice !== null ? `$${displayPrice.toFixed(4)}` : '—'}
             </Text>
             {priceDelta !== null && priceDeltaPercent !== null && (
               <View
-                className="ml-2 px-2 py-0.5 rounded-full"
+                className="ml-2 px-2.5 py-1 rounded-full"
                 style={{
                   backgroundColor: priceDelta >= 0 ? uiColors.successBg : uiColors.dangerBg,
                 }}
               >
                 <Text
-                  className="text-[10px] font-semibold"
-                  style={{ color: priceDelta >= 0 ? uiColors.buyText : uiColors.dangerText }}
+                  className="text-[11px] font-semibold leading-4"
+                  style={[{ color: priceDelta >= 0 ? uiColors.buyText : uiColors.dangerText }, TABULAR_NUMS]}
                 >
                   {formatSignedNumber(priceDeltaPercent, 2)}%
                 </Text>
@@ -618,21 +622,21 @@ export default function App() {
       </Pressable>
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 24, paddingTop: 8 }}
+        contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
       >
         {feedback && (
           <Pressable
             onPress={() => setFeedback(null)}
-            className="border px-4 py-2 mb-3"
+            className="border px-4 py-2.5 mb-4"
             style={{
               backgroundColor: feedback.type === 'error' ? uiColors.dangerBg : uiColors.successBg,
               borderColor: feedback.type === 'error' ? uiColors.dangerBorder : uiColors.successBorder,
             }}
           >
             <Text
-              className="text-sm"
+              className="text-sm leading-5"
               style={{ color: feedback.type === 'error' ? uiColors.dangerText : uiColors.buyText }}
             >
               {feedback.message}
@@ -640,37 +644,46 @@ export default function App() {
           </Pressable>
         )}
 
-        <View className="mb-3 px-4">
+        <View className="mb-4 px-4">
           <View className="flex-row justify-between">
             <View className="flex-1 pr-2 border-r" style={{ borderRightColor: uiColors.divider }}>
-              <Text className="text-[10px] uppercase" style={{ color: uiColors.textSubtle }}>
+              <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
                 24h High
               </Text>
-              <Text className="text-xs font-semibold mt-0.5" style={{ color: uiColors.textSecondary }}>
+              <Text
+                className="text-[14px] font-semibold mt-0.5 leading-5"
+                style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+              >
                 {marketStats.high === null ? '—' : `$${marketStats.high.toFixed(4)}`}
               </Text>
             </View>
             <View className="flex-1 px-2 border-r" style={{ borderRightColor: uiColors.divider }}>
-              <Text className="text-[10px] uppercase" style={{ color: uiColors.textSubtle }}>
+              <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
                 24h Low
               </Text>
-              <Text className="text-xs font-semibold mt-0.5" style={{ color: uiColors.textSecondary }}>
+              <Text
+                className="text-[14px] font-semibold mt-0.5 leading-5"
+                style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+              >
                 {marketStats.low === null ? '—' : `$${marketStats.low.toFixed(4)}`}
               </Text>
             </View>
             <View className="flex-1 pl-2">
-              <Text className="text-[10px] uppercase" style={{ color: uiColors.textSubtle }}>
+              <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
                 24h Vol ({quoteTicker})
               </Text>
-              <Text className="text-xs font-semibold mt-0.5" style={{ color: uiColors.textSecondary }}>
+              <Text
+                className="text-[14px] font-semibold mt-0.5 leading-5"
+                style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+              >
                 {marketStats.volumeQuote === null ? '—' : formatCompactNumber(marketStats.volumeQuote)}
               </Text>
             </View>
           </View>
         </View>
 
-        <View className="mb-4">
-          <View className="flex-row items-end border-b mb-2 px-4" style={{ borderBottomColor: uiColors.divider }}>
+        <View className="mb-5">
+          <View className="flex-row items-end border-b mb-3 px-4" style={{ borderBottomColor: uiColors.divider }}>
             {[
               { key: 'chart', label: 'Chart' },
               { key: 'orderBook', label: 'Order Book' },
@@ -679,11 +692,11 @@ export default function App() {
               <Pressable
                 key={tab.key}
                 onPress={() => setMarketPanelTab(tab.key as MarketPanelTab)}
-                className="px-2 py-2 mr-4 border-b"
+                className="px-2 pb-2.5 pt-1.5 mr-4 border-b"
                 style={{ borderBottomColor: marketPanelTab === tab.key ? uiColors.primary : 'transparent' }}
               >
                 <Text
-                  className="text-sm"
+                  className="text-[15px] font-medium leading-5"
                   style={{ color: marketPanelTab === tab.key ? uiColors.primaryText : uiColors.textMuted }}
                 >
                   {tab.label}
@@ -694,21 +707,21 @@ export default function App() {
 
           {marketPanelTab === 'chart' && (
             <>
-              <View className="flex-row items-center justify-between mb-2 px-4">
-                <Text className="text-white text-lg font-semibold">Chart</Text>
+              <View className="flex-row items-center justify-between mb-3 px-4">
+                <Text className="text-white text-xl font-semibold leading-7 tracking-tight">Chart</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View className="flex-row items-end">
                     {CHART_TIMEFRAMES.map((option) => (
                       <Pressable
                         key={option.label}
                         onPress={() => handleTimeframeChange(option.label)}
-                        className="px-2 pb-1 mr-3 border-b"
+                        className="px-2 pb-1.5 mr-3 border-b"
                         style={{
                           borderBottomColor: option.label === chartTimeframe ? uiColors.primary : 'transparent',
                         }}
                       >
                         <Text
-                          className="text-sm"
+                          className="text-[15px] font-medium leading-5"
                           style={{ color: option.label === chartTimeframe ? uiColors.primaryText : uiColors.textMuted }}
                         >
                           {option.label}
@@ -721,28 +734,58 @@ export default function App() {
 
               {activeOhlcv && (
                 <View
-                  className="mb-2 border-y py-1.5 px-4"
+                  className="mb-3 border-y py-2 px-4"
                   style={{ borderTopColor: uiColors.divider, borderBottomColor: uiColors.divider }}
                 >
                   <View className="flex-row justify-between">
-                    <Text className="text-[11px]" style={{ color: uiColors.textMuted }}>
-                      O {activeOhlcv.open.toFixed(2)}
+                    <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
+                      O{' '}
+                      <Text
+                        className="text-xs font-semibold leading-5"
+                        style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                      >
+                        {activeOhlcv.open.toFixed(2)}
+                      </Text>
                     </Text>
-                    <Text className="text-[11px]" style={{ color: uiColors.textMuted }}>
-                      H {activeOhlcv.high.toFixed(2)}
+                    <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
+                      H{' '}
+                      <Text
+                        className="text-xs font-semibold leading-5"
+                        style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                      >
+                        {activeOhlcv.high.toFixed(2)}
+                      </Text>
                     </Text>
-                    <Text className="text-[11px]" style={{ color: uiColors.textMuted }}>
-                      L {activeOhlcv.low.toFixed(2)}
+                    <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
+                      L{' '}
+                      <Text
+                        className="text-xs font-semibold leading-5"
+                        style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                      >
+                        {activeOhlcv.low.toFixed(2)}
+                      </Text>
                     </Text>
-                    <Text className="text-[11px]" style={{ color: uiColors.textMuted }}>
-                      C {activeOhlcv.close.toFixed(2)}
+                    <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
+                      C{' '}
+                      <Text
+                        className="text-xs font-semibold leading-5"
+                        style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                      >
+                        {activeOhlcv.close.toFixed(2)}
+                      </Text>
                     </Text>
-                    <Text className="text-[11px]" style={{ color: uiColors.textMuted }} numberOfLines={1}>
-                      V {activeOhlcv.volume === null ? '—' : formatCompactNumber(activeOhlcv.volume)}
+                    <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }} numberOfLines={1}>
+                      V{' '}
+                      <Text
+                        className="text-xs font-semibold leading-5"
+                        style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                      >
+                        {activeOhlcv.volume === null ? '—' : formatCompactNumber(activeOhlcv.volume)}
+                      </Text>
                     </Text>
                   </View>
                   {activeOhlcvTimeLabel && (
-                    <Text className="text-[10px] mt-1" style={{ color: uiColors.textSubtle }}>
+                    <Text className="text-[11px] mt-1 leading-4" style={{ color: uiColors.textSubtle }}>
                       {activeOhlcvTimeLabel}
                     </Text>
                   )}
@@ -788,16 +831,16 @@ export default function App() {
           )}
 
           {marketPanelTab === 'orderBook' && (
-            <View className="p-4" style={{ backgroundColor: uiColors.panel }}>
-              <Text className="text-white text-base font-semibold mb-2">Order Book</Text>
-              <Text className="text-sm" style={{ color: uiColors.textMuted }}>
+            <View className="px-4 py-5" style={{ backgroundColor: uiColors.panel }}>
+              <Text className="text-white text-lg font-semibold leading-6 mb-2">Order Book</Text>
+              <Text className="text-sm leading-6" style={{ color: uiColors.textMuted }}>
                 Order book snapshots are not available in the current market feed yet.
               </Text>
             </View>
           )}
 
           {marketPanelTab === 'trades' && (
-            <View className="p-4" style={{ backgroundColor: uiColors.panel }}>
+            <View className="px-4 py-5" style={{ backgroundColor: uiColors.panel }}>
               {selectedAccount ? (
                 <ClosedPositionsList
                   embedded
@@ -810,7 +853,7 @@ export default function App() {
                   limit={10}
                 />
               ) : (
-                <Text className="text-sm py-3" style={{ color: uiColors.textMuted }}>
+                <Text className="text-sm leading-6 py-3" style={{ color: uiColors.textMuted }}>
                   Connect wallet to view recent trades.
                 </Text>
               )}
@@ -818,31 +861,31 @@ export default function App() {
           )}
 
           {marketEventsError && (
-            <Text className="text-sm mt-2 px-4" style={{ color: uiColors.dangerText }}>
+            <Text className="text-sm leading-5 mt-2 px-4" style={{ color: uiColors.dangerText }}>
               {marketEventsError}
             </Text>
           )}
           {marketPriceError && (
-            <Text className="text-sm mt-2 px-4" style={{ color: uiColors.dangerText }}>
+            <Text className="text-sm leading-5 mt-2 px-4" style={{ color: uiColors.dangerText }}>
               {marketPriceError}
             </Text>
           )}
         </View>
 
-        <View className="p-4" style={{ backgroundColor: uiColors.surface }}>
-          <Text className="text-white text-lg font-semibold mb-2">Create Order</Text>
+        <View className="px-4 pt-5 pb-4" style={{ backgroundColor: uiColors.surface }}>
+          <Text className="text-white text-xl font-semibold leading-7 tracking-tight mb-3">Create Order</Text>
 
           <View
-            className="flex-row rounded-xl p-1 mb-3"
+            className="flex-row rounded-xl p-1 mb-4"
             style={{ backgroundColor: uiColors.panelSoft, borderWidth: 1, borderColor: uiColors.border }}
           >
             <Pressable
               onPress={() => handleSideChange('buy')}
-              className="flex-1 py-3 rounded-lg items-center"
+              className="flex-1 py-3.5 rounded-lg items-center"
               style={{ backgroundColor: side === 'buy' ? uiColors.buy : 'transparent' }}
             >
               <Text
-                className="font-semibold"
+                className="text-base font-semibold leading-5"
                 style={{ color: side === 'buy' ? uiColors.textPrimary : uiColors.textSubtle }}
               >
                 Buy
@@ -850,11 +893,11 @@ export default function App() {
             </Pressable>
             <Pressable
               onPress={() => handleSideChange('sell')}
-              className="flex-1 py-3 rounded-lg items-center"
+              className="flex-1 py-3.5 rounded-lg items-center"
               style={{ backgroundColor: side === 'sell' ? uiColors.sell : 'transparent' }}
             >
               <Text
-                className="font-semibold"
+                className="text-base font-semibold leading-5"
                 style={{ color: side === 'sell' ? uiColors.textPrimary : uiColors.textSubtle }}
               >
                 Sell
@@ -862,34 +905,37 @@ export default function App() {
             </Pressable>
           </View>
 
-          <View className="mb-3 pb-3 border-b" style={{ borderBottomColor: uiColors.divider }}>
-            <Text className="text-sm mb-1" style={{ color: uiColors.textSubtle }}>
+          <View className="mb-4 pb-4 border-b" style={{ borderBottomColor: uiColors.divider }}>
+            <Text
+              className="text-[10px] font-semibold mb-1 leading-4"
+              style={[{ color: uiColors.textSubtle }, OVERLINE]}
+            >
               Available
             </Text>
             {selectedAccount && availableAmountLoading ? (
               <ActivityIndicator size="small" color={uiColors.textMuted} />
             ) : (
-              <Text className="text-white text-lg font-semibold">
+              <Text className="text-white text-[24px] font-semibold leading-9 tracking-tight" style={TABULAR_NUMS}>
                 {formatUiAmount(availableAmountDisplay)} {amountTokenTicker}
               </Text>
             )}
           </View>
 
-          <View className="mb-3 pb-3 border-b" style={{ borderBottomColor: uiColors.divider }}>
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-sm" style={{ color: uiColors.textSubtle }}>
+          <View className="mb-4 pb-4 border-b" style={{ borderBottomColor: uiColors.divider }}>
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
                 Order size ({amountTokenTicker})
               </Text>
               <Pressable
                 onPress={() => handleSliderChange(100)}
                 disabled={!availableAmountAtoms || availableAmountAtoms <= 0n}
-                className="px-3 py-1 rounded-full"
+                className="px-3.5 py-1.5 rounded-full"
                 style={{
                   backgroundColor:
                     !availableAmountAtoms || availableAmountAtoms <= 0n ? uiColors.disabledBg : uiColors.primarySoft,
                 }}
               >
-                <Text className="text-xs font-semibold" style={{ color: uiColors.textSecondary }}>
+                <Text className="text-[12px] font-semibold leading-4" style={{ color: uiColors.textSecondary }}>
                   Max
                 </Text>
               </Pressable>
@@ -900,21 +946,24 @@ export default function App() {
               placeholder={`0.00 ${amountTokenTicker}`}
               placeholderTextColor={uiColors.textSubtle}
               keyboardType="decimal-pad"
-              className="rounded-xl border px-4 py-3 text-white text-lg"
-              style={{ borderColor: uiColors.border, backgroundColor: uiColors.panel }}
+              className="rounded-xl border px-4 py-3.5 text-white text-[22px] font-semibold leading-9"
+              style={[{ borderColor: uiColors.border, backgroundColor: uiColors.panel }, TABULAR_NUMS]}
             />
             {estimatedConversionText && (
-              <Text className="text-xs mt-2" style={{ color: uiColors.textSubtle }}>
-                Estimated receive: {estimatedConversionText}
+              <Text className="text-sm leading-5 mt-3" style={{ color: uiColors.textSubtle }}>
+                Estimated receive:{' '}
+                <Text className="font-semibold" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+                  {estimatedConversionText}
+                </Text>
               </Text>
             )}
             {priceImpactPercent !== null && (
-              <View className="flex-row items-center mt-1">
-                <Text className="text-xs" style={{ color: uiColors.textSubtle }}>
+              <View className="flex-row items-center mt-1.5">
+                <Text className="text-sm leading-5" style={{ color: uiColors.textSubtle }}>
                   Price impact:{' '}
                 </Text>
                 <Text
-                  className="text-xs font-medium"
+                  className="text-sm font-semibold leading-5"
                   style={{
                     color:
                       priceImpactPercent < 0.1
@@ -928,12 +977,15 @@ export default function App() {
                 </Text>
               </View>
             )}
-            <View className="mt-3">
-              <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-xs" style={{ color: uiColors.textSubtle }}>
+            <View className="mt-4">
+              <View className="flex-row items-center justify-between mb-2.5">
+                <Text
+                  className="text-[10px] font-semibold leading-4"
+                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                >
                   Use balance
                 </Text>
-                <Text className="text-xs" style={{ color: uiColors.textMuted }}>
+                <Text className="text-sm font-medium leading-5" style={[{ color: uiColors.textMuted }, TABULAR_NUMS]}>
                   {sliderValue.toFixed(2)}%
                 </Text>
               </View>
@@ -948,7 +1000,7 @@ export default function App() {
                     key={percent}
                     onPress={() => handleSliderChange(percent)}
                     disabled={!availableAmountAtoms || availableAmountAtoms <= 0n}
-                    className="px-3 py-1 rounded-full border mr-2"
+                    className="px-3.5 py-2 rounded-full border mr-2"
                     style={{
                       borderColor:
                         !availableAmountAtoms || availableAmountAtoms <= 0n ? uiColors.border : uiColors.primarySoft,
@@ -956,7 +1008,10 @@ export default function App() {
                         !availableAmountAtoms || availableAmountAtoms <= 0n ? uiColors.panelSoft : uiColors.primarySoft,
                     }}
                   >
-                    <Text className="text-xs" style={{ color: uiColors.textSecondary }}>
+                    <Text
+                      className="text-sm font-medium leading-5"
+                      style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                    >
                       {percent}%
                     </Text>
                   </Pressable>
@@ -965,11 +1020,14 @@ export default function App() {
             </View>
           </View>
 
-          <View className="mb-3">
-            <Text className="text-sm mb-2" style={{ color: uiColors.textSubtle }}>
+          <View className="mb-4">
+            <Text
+              className="text-[10px] font-semibold mb-2 leading-4"
+              style={[{ color: uiColors.textSubtle }, OVERLINE]}
+            >
               Duration
             </Text>
-            <Text className="text-xs mb-2" style={{ color: uiColors.textMuted }}>
+            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.textMuted }}>
               Choose how long the order will stream.
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -981,14 +1039,14 @@ export default function App() {
                       setDurationSeconds(option.seconds);
                       setValidationError(null);
                     }}
-                    className="px-4 py-2 rounded-full border mr-2"
+                    className="px-4 py-2.5 rounded-full border mr-2"
                     style={{
                       backgroundColor: option.seconds === durationSeconds ? uiColors.primary : uiColors.panel,
                       borderColor: option.seconds === durationSeconds ? uiColors.primaryPress : uiColors.border,
                     }}
                   >
                     <Text
-                      className="text-sm"
+                      className="text-base font-medium leading-5"
                       style={{ color: option.seconds === durationSeconds ? uiColors.primaryText : uiColors.textMuted }}
                     >
                       {option.label}
@@ -1000,32 +1058,32 @@ export default function App() {
           </View>
 
           {configLoading && (
-            <Text className="text-sm mb-3" style={{ color: uiColors.textMuted }}>
+            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.textMuted }}>
               Loading market config...
             </Text>
           )}
           {configError && (
-            <Text className="text-sm mb-3" style={{ color: uiColors.dangerText }}>
+            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.dangerText }}>
               {configError}
             </Text>
           )}
           {amountExceedsAvailable && (
-            <Text className="text-sm mb-3" style={{ color: uiColors.dangerText }}>
+            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.dangerText }}>
               Amount exceeds available balance.
             </Text>
           )}
           {validationError && (
-            <Text className="text-sm mb-3" style={{ color: uiColors.dangerText }}>
+            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.dangerText }}>
               {validationError}
             </Text>
           )}
           {status === 'success' && (
-            <Text className="text-sm mb-3" style={{ color: uiColors.buyText }}>
+            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.buyText }}>
               Order submitted{signature ? `: ${signature.slice(0, 6)}...${signature.slice(-6)}` : ''}.
             </Text>
           )}
           {status === 'error' && orderError && (
-            <Text className="text-sm mb-3" style={{ color: uiColors.dangerText }}>
+            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.dangerText }}>
               {orderError}
             </Text>
           )}
@@ -1034,12 +1092,12 @@ export default function App() {
             <Pressable
               onPress={handleSubmitOrder}
               disabled={submitDisabled}
-              className="rounded-xl py-4 items-center"
+              className="rounded-xl py-4.5 items-center"
               style={{
                 backgroundColor: submitDisabled ? uiColors.disabledBg : side === 'buy' ? uiColors.buy : uiColors.sell,
               }}
             >
-              <Text className="text-white font-semibold text-base">{statusLabel}</Text>
+              <Text className="text-white font-semibold text-lg leading-6">{statusLabel}</Text>
             </Pressable>
           ) : (
             <ConnectButton />
@@ -1048,14 +1106,14 @@ export default function App() {
 
         {selectedAccount && (
           <View
-            className="border-t border-b p-4 mt-4"
+            className="border-t border-b px-4 py-5 mt-4"
             style={{
               backgroundColor: uiColors.surface,
               borderTopColor: uiColors.border,
               borderBottomColor: uiColors.border,
             }}
           >
-            <View className="flex-row items-end border-b mb-3" style={{ borderBottomColor: uiColors.divider }}>
+            <View className="flex-row items-end border-b mb-4" style={{ borderBottomColor: uiColors.divider }}>
               {[
                 { key: 'active', label: `Positions (${positions.length})` },
                 { key: 'closed', label: 'Closed' },
@@ -1063,11 +1121,11 @@ export default function App() {
                 <Pressable
                   key={tab.key}
                   onPress={() => setPositionPanelTab(tab.key as PositionPanelTab)}
-                  className="px-2 py-2 mr-4 border-b"
+                  className="px-2 pb-2.5 pt-1.5 mr-4 border-b"
                   style={{ borderBottomColor: positionPanelTab === tab.key ? uiColors.primary : 'transparent' }}
                 >
                   <Text
-                    className="text-sm"
+                    className="text-[15px] font-medium leading-5"
                     style={{ color: positionPanelTab === tab.key ? uiColors.primaryText : uiColors.textMuted }}
                   >
                     {tab.label}
@@ -1081,7 +1139,7 @@ export default function App() {
                 {positionsLoading ? (
                   <ActivityIndicator size="small" color={uiColors.textMuted} />
                 ) : positions.length === 0 ? (
-                  <Text className="text-sm" style={{ color: uiColors.textSubtle }}>
+                  <Text className="text-sm leading-5" style={{ color: uiColors.textSubtle }}>
                     No active positions.
                   </Text>
                 ) : (
@@ -1105,18 +1163,18 @@ export default function App() {
                 )}
 
                 {closeStatus === 'success' && (
-                  <Text className="text-sm mt-2" style={{ color: uiColors.buyText }}>
+                  <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.buyText }}>
                     Position closed
                     {closeSignature ? `: ${closeSignature.slice(0, 6)}...${closeSignature.slice(-6)}` : ''}.
                   </Text>
                 )}
                 {closeStatus === 'error' && closeError && (
-                  <Text className="text-sm mt-2" style={{ color: uiColors.dangerText }}>
+                  <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.dangerText }}>
                     {closeError}
                   </Text>
                 )}
                 {streamingStateError && (
-                  <Text className="text-sm mt-2" style={{ color: uiColors.dangerText }}>
+                  <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.dangerText }}>
                     {streamingStateError}
                   </Text>
                 )}
