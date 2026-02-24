@@ -9,6 +9,7 @@ import { QueryProvider } from '../providers/QueryProvider';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'react-native';
+import { uiColors } from '../theme/colors';
 
 const cluster = createSolanaDevnet();
 
@@ -20,8 +21,8 @@ export default function Layout() {
           <QueryProvider>
             <ConnectionProvider>
               <AuthorizationProvider>
-                <SafeAreaView style={{ flex: 1 }}>
-                  <StatusBar barStyle="light-content" />
+                <SafeAreaView style={{ flex: 1, backgroundColor: uiColors.background }}>
+                  <StatusBar barStyle="light-content" backgroundColor={uiColors.background} />
                   <Slot />
                 </SafeAreaView>
               </AuthorizationProvider>

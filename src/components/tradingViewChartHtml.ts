@@ -1,3 +1,5 @@
+import { uiColors } from '../theme/colors';
+
 export function getTradingViewChartHtml(chartWidth: number, chartHeight: number): string {
   return `
 <!DOCTYPE html>
@@ -12,7 +14,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
       box-sizing: border-box;
     }
     html, body {
-      background: #131722;
+      background: ${uiColors.chartBackground};
       width: 100%;
       height: 100%;
       overflow: hidden;
@@ -21,14 +23,14 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
     #chart-container {
       width: ${chartWidth}px;
       height: ${chartHeight}px;
-      background: #131722;
+      background: ${uiColors.chartBackground};
     }
     #loading {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      color: #94A3B8;
+      color: ${uiColors.textMuted};
       font-size: 13px;
     }
   </style>
@@ -81,28 +83,28 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
         try {
           chart = LightweightCharts.createChart(container, {
             layout: {
-              background: { type: 'solid', color: '#131722' },
-              textColor: '#94A3B8',
+              background: { type: 'solid', color: '${uiColors.chartBackground}' },
+              textColor: '${uiColors.textMuted}',
               fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
               fontSize: 12,
             },
             grid: {
-              vertLines: { color: '#2B2B43', style: 1 },
-              horzLines: { color: '#2B2B43', style: 1 },
+              vertLines: { color: '${uiColors.chartGrid}', style: 1 },
+              horzLines: { color: '${uiColors.chartGrid}', style: 1 },
             },
             crosshair: {
               mode: 0,
               vertLine: {
-                color: '#758696',
+                color: '${uiColors.chartCrosshair}',
                 width: 1,
                 style: 2,
-                labelBackgroundColor: '#131722',
+                labelBackgroundColor: '${uiColors.chartBackground}',
               },
               horzLine: {
-                color: '#758696',
+                color: '${uiColors.chartCrosshair}',
                 width: 1,
                 style: 2,
-                labelBackgroundColor: '#131722',
+                labelBackgroundColor: '${uiColors.chartBackground}',
               },
             },
             handleScroll: {
@@ -117,14 +119,14 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
               mouseWheel: false,
             },
             rightPriceScale: {
-              borderColor: '#2B2B43',
+              borderColor: '${uiColors.chartGrid}',
               scaleMargins: {
                 top: 0.08,
                 bottom: 0.28,
               },
             },
             timeScale: {
-              borderColor: '#2B2B43',
+              borderColor: '${uiColors.chartGrid}',
               timeVisible: true,
               secondsVisible: false,
               rightOffset: 6,
@@ -142,12 +144,12 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
           });
 
           candleSeries = chart.addCandlestickSeries({
-            upColor: '#22c55e',
-            downColor: '#ef4444',
-            borderUpColor: '#22c55e',
-            borderDownColor: '#ef4444',
-            wickUpColor: '#22c55e',
-            wickDownColor: '#ef4444',
+            upColor: '${uiColors.buy}',
+            downColor: '${uiColors.sell}',
+            borderUpColor: '${uiColors.buy}',
+            borderDownColor: '${uiColors.sell}',
+            wickUpColor: '${uiColors.buy}',
+            wickDownColor: '${uiColors.sell}',
             priceLineVisible: true,
             lastValueVisible: true,
           });
@@ -245,7 +247,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
             return {
               time: Number(c.time),
               value: Number(c.volume || 0),
-              color: isUp ? 'rgba(34, 197, 94, 0.45)' : 'rgba(239, 68, 68, 0.45)',
+              color: isUp ? 'rgba(44, 203, 115, 0.4)' : 'rgba(242, 85, 101, 0.4)',
             };
           });
           volumeSeries.setData(formattedVolumes);
@@ -298,7 +300,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
             volumeSeries.update({
               time: normalized.time,
               value: Number(candle.volume || 0),
-              color: isUp ? 'rgba(34, 197, 94, 0.45)' : 'rgba(239, 68, 68, 0.45)',
+              color: isUp ? 'rgba(44, 203, 115, 0.4)' : 'rgba(242, 85, 101, 0.4)',
             });
           }
         } catch (_) {}

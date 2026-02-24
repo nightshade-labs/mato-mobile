@@ -82,9 +82,11 @@ export function ClosedPositionsList({
       {!embedded && <Text className="text-white text-xl font-bold mb-4">Closed Positions</Text>}
 
       {loading ? (
-        <ActivityIndicator size="small" color="#c5cbe8" />
+        <ActivityIndicator size="small" color={uiColors.textMuted} />
       ) : events.length === 0 ? (
-        <Text className="text-[#8b93bd] text-sm">No closed positions yet.</Text>
+        <Text className="text-sm" style={{ color: uiColors.textSubtle }}>
+          No closed positions yet.
+        </Text>
       ) : (
         <View>
           {events.map((event) => (
@@ -100,7 +102,11 @@ export function ClosedPositionsList({
         </View>
       )}
 
-      {error && <Text className="text-[#f48993] text-sm mt-2">{error}</Text>}
+      {error && (
+        <Text className="text-sm mt-2" style={{ color: uiColors.dangerText }}>
+          {error}
+        </Text>
+      )}
     </>
   );
 
@@ -108,7 +114,14 @@ export function ClosedPositionsList({
     return <View>{content}</View>;
   }
 
-  return <View className="rounded-2xl bg-[#171b34] border border-[#2a2f53] p-5 mt-5">{content}</View>;
+  return (
+    <View
+      className="rounded-2xl border p-5 mt-5"
+      style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
+    >
+      {content}
+    </View>
+  );
 }
 
 interface ClosedPositionRowProps {
@@ -174,18 +187,24 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
             >
               <Text
                 className="text-[10px] font-semibold"
-                style={{ color: isBuy ? uiColors.accentText : uiColors.dangerText }}
+                style={{ color: isBuy ? uiColors.buyText : uiColors.dangerText }}
               >
                 {sideLabel}
               </Text>
             </View>
-            <Text className="text-[#9ea8d6] text-xs ml-2">{flowLabel}</Text>
+            <Text className="text-xs ml-2" style={{ color: uiColors.textMuted }}>
+              {flowLabel}
+            </Text>
           </View>
           <View className="flex-row items-center">
             <Pressable onPress={handleOpenTx} hitSlop={8}>
-              <Text className="text-[#7d88b8] text-[10px] underline">{shortenSignature(event.signature)}</Text>
+              <Text className="text-[10px] underline" style={{ color: uiColors.textSubtle }}>
+                {shortenSignature(event.signature)}
+              </Text>
             </Pressable>
-            <Text className="text-[#7d88b8] text-[10px] ml-2">{expanded ? '▲' : '▼'}</Text>
+            <Text className="text-[10px] ml-2" style={{ color: uiColors.textSubtle }}>
+              {expanded ? '▲' : '▼'}
+            </Text>
           </View>
         </View>
 
@@ -194,15 +213,19 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
             className="flex-row items-center justify-between mt-2 pt-2 border-t"
             style={{ borderTopColor: uiColors.divider }}
           >
-            <Text className="text-[#d7defa] text-xs font-medium">
+            <Text className="text-xs font-medium" style={{ color: uiColors.textSecondary }}>
               {formatAtomsToDisplay(consumedAtoms, depositDecimals)} {depositToken}
             </Text>
-            <Text className="text-[#7380b4] text-[10px]">→</Text>
-            <Text className="text-[#d7defa] text-xs font-medium">
+            <Text className="text-[10px]" style={{ color: uiColors.textSubtle }}>
+              →
+            </Text>
+            <Text className="text-xs font-medium" style={{ color: uiColors.textSecondary }}>
               {formatAtomsToDisplay(receivedAtoms, swappedDecimals)} {swappedToken}
             </Text>
             {effectivePrice !== null && (
-              <Text className="text-[#8b93bd] text-[10px]">@ {formatPrice(effectivePrice)}</Text>
+              <Text className="text-[10px]" style={{ color: uiColors.textSubtle }}>
+                @ {formatPrice(effectivePrice)}
+              </Text>
             )}
           </View>
         )}
@@ -211,35 +234,45 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
           <View className="mt-2 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
             <View className="flex-row justify-between mb-1">
               <View className="flex-1 pr-2">
-                <Text className="text-[#7380b4] text-[10px] uppercase">Deposited</Text>
-                <Text className="text-[#d7defa] text-xs font-medium">
+                <Text className="text-[10px] uppercase" style={{ color: uiColors.textSubtle }}>
+                  Deposited
+                </Text>
+                <Text className="text-xs font-medium" style={{ color: uiColors.textSecondary }}>
                   {formatAtomsToDisplay(depositedAtoms, depositDecimals)} {depositToken}
                 </Text>
               </View>
               <View className="flex-1 pl-2">
-                <Text className="text-[#7380b4] text-[10px] uppercase">{consumedLabel}</Text>
-                <Text className="text-[#d7defa] text-xs font-medium">
+                <Text className="text-[10px] uppercase" style={{ color: uiColors.textSubtle }}>
+                  {consumedLabel}
+                </Text>
+                <Text className="text-xs font-medium" style={{ color: uiColors.textSecondary }}>
                   {formatAtomsToDisplay(consumedAtoms, depositDecimals)} {depositToken}
                 </Text>
               </View>
             </View>
             <View className="flex-row justify-between mb-1">
               <View className="flex-1 pr-2">
-                <Text className="text-[#7380b4] text-[10px] uppercase">Received</Text>
-                <Text className="text-[#d7defa] text-xs font-medium">
+                <Text className="text-[10px] uppercase" style={{ color: uiColors.textSubtle }}>
+                  Received
+                </Text>
+                <Text className="text-xs font-medium" style={{ color: uiColors.textSecondary }}>
                   {formatAtomsToDisplay(receivedAtoms, swappedDecimals)} {swappedToken}
                 </Text>
               </View>
               <View className="flex-1 pl-2">
-                <Text className="text-[#7380b4] text-[10px] uppercase">Fee</Text>
-                <Text className="text-[#d7defa] text-xs font-medium">
+                <Text className="text-[10px] uppercase" style={{ color: uiColors.textSubtle }}>
+                  Fee
+                </Text>
+                <Text className="text-xs font-medium" style={{ color: uiColors.textSecondary }}>
                   {formatAtomsToDisplay(feeAtoms, feeDecimals)} {feeToken}
                 </Text>
               </View>
             </View>
             <View className="mt-1 pt-1 border-t" style={{ borderTopColor: uiColors.divider }}>
-              <Text className="text-[#7380b4] text-[10px] uppercase">{effectivePriceLabel}</Text>
-              <Text className="text-[#d7defa] text-xs font-medium">
+              <Text className="text-[10px] uppercase" style={{ color: uiColors.textSubtle }}>
+                {effectivePriceLabel}
+              </Text>
+              <Text className="text-xs font-medium" style={{ color: uiColors.textSecondary }}>
                 {effectivePrice === null ? '—' : `${formatPrice(effectivePrice)} ${quoteTicker}/${baseTicker}`}
               </Text>
             </View>

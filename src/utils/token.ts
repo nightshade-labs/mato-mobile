@@ -52,10 +52,13 @@ export function parseTokenAmount(input: string, decimals: number): bigint | null
 }
 
 export function getMaxTransferAmount(
-  balanceAtoms: number,
-  estimatedFeeAtoms: number = 10_000_000, // Conservative transaction fee + rent
-): number {
+  balanceAtoms: bigint | null,
+  estimatedFeeAtoms: bigint = 10_000_000n, // Conservative transaction fee + rent
+): bigint | null {
+  if (balanceAtoms === null) {
+    return null;
+  }
   // Leave a small buffer for fees
   // Note: token transfers don't cost tokens, but the user needs SOL for gas
-  return Math.max(0, balanceAtoms - estimatedFeeAtoms);
+  return balanceAtoms > estimatedFeeAtoms ? balanceAtoms - estimatedFeeAtoms : 0n;
 }

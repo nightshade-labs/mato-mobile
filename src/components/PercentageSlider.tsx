@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { LayoutChangeEvent, PanResponder, View } from 'react-native';
+import { uiColors } from '../theme/colors';
 
 interface PercentageSliderProps {
   value: number;
@@ -69,12 +70,12 @@ export function PercentageSlider({ value, onChange, disabled = false }: Percenta
       className="h-11 justify-center"
       {...panResponder.panHandlers}
     >
-      <View className="h-2 rounded-full bg-[#2a3258]">
+      <View className="h-2 rounded-full" style={{ backgroundColor: uiColors.divider }}>
         <View
           className="h-2 rounded-full"
           style={{
             width: `${clampedValue}%`,
-            backgroundColor: disabled ? '#3a4060' : '#512da8',
+            backgroundColor: disabled ? uiColors.disabledBg : uiColors.primary,
           }}
         />
       </View>
@@ -85,8 +86,8 @@ export function PercentageSlider({ value, onChange, disabled = false }: Percenta
           width: THUMB_SIZE,
           height: THUMB_SIZE,
           left: thumbOffset,
-          backgroundColor: disabled ? '#3a4060' : '#7e65c7',
-          borderColor: disabled ? '#4a5070' : '#512da8',
+          backgroundColor: disabled ? uiColors.disabledBg : uiColors.primaryText,
+          borderColor: disabled ? uiColors.border : uiColors.primary,
         }}
       />
     </View>

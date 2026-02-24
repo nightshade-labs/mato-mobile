@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { getTradingViewChartHtml } from './tradingViewChartHtml';
+import { uiColors } from '../theme/colors';
 
 const { width } = Dimensions.get('window');
 const DEFAULT_WIDTH = width;
@@ -142,18 +143,25 @@ export function TradingViewChart({
   };
 
   return (
-    <View className="bg-[#131722] overflow-hidden relative">
+    <View className="overflow-hidden relative" style={{ backgroundColor: uiColors.chartBackground }}>
       {!isReady && (
-        <View className="absolute inset-0 items-center justify-center z-10 bg-[#131722]">
-          <ActivityIndicator size="small" color="#94A3B8" />
-          {chartError && <Text className="text-[#94A3B8] text-xs mt-2">{chartError}</Text>}
+        <View
+          className="absolute inset-0 items-center justify-center z-10"
+          style={{ backgroundColor: uiColors.chartBackground }}
+        >
+          <ActivityIndicator size="small" color={uiColors.textMuted} />
+          {chartError && (
+            <Text className="text-xs mt-2" style={{ color: uiColors.textMuted }}>
+              {chartError}
+            </Text>
+          )}
         </View>
       )}
 
       <WebView
         ref={webViewRef}
         source={{ html: getTradingViewChartHtml(chartWidth, height) }}
-        style={{ width: chartWidth, height, backgroundColor: '#131722' }}
+        style={{ width: chartWidth, height, backgroundColor: uiColors.chartBackground }}
         scrollEnabled={false}
         nestedScrollEnabled
         bounces={false}

@@ -51,14 +51,26 @@ export function ConnectButton({ variant = 'default' }: ConnectButtonProps) {
   if (selectedAccount) {
     if (variant === 'compact') {
       return (
-        <TouchableOpacity className="border border-[#3a4677] rounded-lg px-3 py-2 items-center" onPress={handleDisconnect}>
-          <Text className="text-[#c9d1f4] text-xs font-medium">Disconnect</Text>
+        <TouchableOpacity
+          className="rounded-full px-4 py-2 items-center"
+          style={{ backgroundColor: uiColors.panelSoft, borderWidth: 1, borderColor: uiColors.border }}
+          onPress={handleDisconnect}
+        >
+          <Text className="text-xs font-semibold" style={{ color: uiColors.textSecondary }}>
+            Disconnect
+          </Text>
         </TouchableOpacity>
       );
     }
     return (
-      <TouchableOpacity className="border border-gray-500 rounded-lg p-3 items-center" onPress={handleDisconnect}>
-        <Text className="text-gray-400 text-sm">Disconnect Wallet</Text>
+      <TouchableOpacity
+        className="rounded-xl p-4 items-center"
+        style={{ backgroundColor: uiColors.panelSoft, borderWidth: 1, borderColor: uiColors.border }}
+        onPress={handleDisconnect}
+      >
+        <Text className="text-sm font-semibold" style={{ color: uiColors.textSecondary }}>
+          Disconnect Wallet
+        </Text>
       </TouchableOpacity>
     );
   }
@@ -66,18 +78,22 @@ export function ConnectButton({ variant = 'default' }: ConnectButtonProps) {
   if (variant === 'compact') {
     return (
       <TouchableOpacity
-        className="rounded-lg px-4 py-2 items-center"
-        style={{ backgroundColor: uiColors.accent }}
+        className="rounded-full px-4 py-2 items-center"
+        style={{ backgroundColor: uiColors.primary }}
         onPress={handleConnect}
       >
-        <Text className="text-[#0a111f] text-xs font-semibold">Connect</Text>
+        <Text className="text-xs font-semibold" style={{ color: uiColors.primaryText }}>
+          Connect
+        </Text>
       </TouchableOpacity>
     );
   }
 
   return (
-    <TouchableOpacity className="bg-[#512da8] rounded-lg p-4 items-center" onPress={handleConnect}>
-      <Text className="text-white text-base font-semibold">Connect Wallet</Text>
+    <TouchableOpacity className="rounded-xl p-4 items-center" style={{ backgroundColor: uiColors.primary }} onPress={handleConnect}>
+      <Text className="text-base font-semibold" style={{ color: uiColors.primaryText }}>
+        Connect Wallet
+      </Text>
     </TouchableOpacity>
   );
 }
