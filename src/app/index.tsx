@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 // StatusBar is configured in _layout.tsx
-import { ActivityIndicator, Image, Keyboard, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Keyboard, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import type { TextStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BN from 'bn.js';
+import { toast } from 'sonner-native';
 import { PublicKey } from '@solana/web3.js';
 import { resolver } from '../utils/accountResolver';
 import { getMaxTransferAmount, parseTokenAmount } from '../utils/token';
@@ -25,6 +26,7 @@ import { TradingViewChart } from '../components/TradingViewChart';
 import type { TradingViewCrosshairData } from '../components/TradingViewChart';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import type { MarketConfigRow } from '../integrations/supabase/types';
+import { CLUSTER } from '../utils/constants';
 import { uiColors } from '../theme/colors';
 
 type OrderSide = 'buy' | 'sell';
@@ -66,13 +68,6 @@ const CHART_TIMEFRAME_STORAGE_KEY = 'mato_mobile_chart_timeframe';
 type ChartTimeframe = (typeof CHART_TIMEFRAMES)[number]['label'];
 type MarketPanelTab = 'chart' | 'orderBook' | 'trades';
 type PositionPanelTab = 'active' | 'closed';
-
-type FeedbackType = 'success' | 'error';
-
-interface FeedbackMessage {
-  type: FeedbackType;
-  message: string;
-}
 
 const TABULAR_NUMS: TextStyle = { fontVariant: ['tabular-nums'] };
 const OVERLINE: TextStyle = { textTransform: 'uppercase', letterSpacing: 0.8 };
@@ -180,6 +175,11 @@ function durationToSlots(seconds: number): number {
   return Math.max(1, Math.round(seconds / SLOT_DURATION_SECONDS));
 }
 
+function explorerTransactionUrl(signature: string): string {
+  const explorerCluster = CLUSTER.startsWith('solana:') ? CLUSTER.slice('solana:'.length) : 'devnet';
+  return `https://explorer.solana.com/tx/${encodeURIComponent(signature)}?cluster=${encodeURIComponent(explorerCluster)}`;
+}
+
 export default function App() {
   const { selectedAccount } = useAuthorization();
   const positionAuthority = selectedAccount?.publicKey.toBase58() ?? '';
@@ -211,8 +211,6 @@ export default function App() {
   const [isChartTimeframeReady, setIsChartTimeframeReady] = useState(false);
   const [isSwitchingTimeframe, setIsSwitchingTimeframe] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
-  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const baseMint = config?.base_mint ?? null;
   const quoteMint = config?.quote_mint ?? null;
@@ -408,14 +406,6 @@ export default function App() {
   const activeOhlcvTimeLabel = useMemo(() => formatCrosshairTimeLabel(activeOhlcv?.time ?? null), [activeOhlcv]);
 
   useEffect(() => {
-    return () => {
-      if (feedbackTimeoutRef.current) {
-        clearTimeout(feedbackTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     let mounted = true;
     const restoreChartTimeframe = async () => {
       try {
@@ -490,17 +480,6 @@ export default function App() {
     void loadMoreHistory();
   }, [loadMoreHistory]);
 
-  const pushFeedback = useCallback((type: FeedbackType, message: string) => {
-    if (feedbackTimeoutRef.current) {
-      clearTimeout(feedbackTimeoutRef.current);
-    }
-    setFeedback({ type, message });
-    feedbackTimeoutRef.current = setTimeout(() => {
-      setFeedback(null);
-      feedbackTimeoutRef.current = null;
-    }, 4000);
-  }, []);
-
   const handleSubmitOrder = async () => {
     if (!config) {
       setValidationError('Market config is not loaded yet.');
@@ -547,31 +526,53 @@ export default function App() {
     });
   };
 
+  const openExplorerTransaction = useCallback(async (transactionSignature: string) => {
+    const url = explorerTransactionUrl(transactionSignature);
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+      toast.error('Could not open Solana Explorer');
+      return;
+    }
+    await Linking.openURL(url);
+  }, []);
+
   useEffect(() => {
     if (status === 'success') {
-      pushFeedback(
-        'success',
-        `Order submitted${signature ? ` (${signature.slice(0, 6)}...${signature.slice(-6)})` : ''}`,
-      );
+      toast.success('Order submitted', {
+        action: signature
+          ? {
+              label: 'View tx',
+              onClick: () => {
+                void openExplorerTransaction(signature);
+              },
+            }
+          : undefined,
+      });
       return;
     }
     if (status === 'error' && orderError) {
-      pushFeedback('error', orderError);
+      toast.error(orderError);
     }
-  }, [status, orderError, signature, pushFeedback]);
+  }, [status, orderError, signature, openExplorerTransaction]);
 
   useEffect(() => {
     if (closeStatus === 'success') {
-      pushFeedback(
-        'success',
-        `Position closed${closeSignature ? ` (${closeSignature.slice(0, 6)}...${closeSignature.slice(-6)})` : ''}`,
-      );
+      toast.success('Position closed', {
+        action: closeSignature
+          ? {
+              label: 'View tx',
+              onClick: () => {
+                void openExplorerTransaction(closeSignature);
+              },
+            }
+          : undefined,
+      });
       return;
     }
     if (closeStatus === 'error' && closeError) {
-      pushFeedback('error', closeError);
+      toast.error(closeError);
     }
-  }, [closeStatus, closeError, closeSignature, pushFeedback]);
+  }, [closeStatus, closeError, closeSignature, openExplorerTransaction]);
 
   return (
     <View className="flex-1" style={{ backgroundColor: uiColors.background }}>
@@ -631,24 +632,6 @@ export default function App() {
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
       >
-        {feedback && (
-          <Pressable
-            onPress={() => setFeedback(null)}
-            className="border px-4 py-2.5 mb-4"
-            style={{
-              backgroundColor: feedback.type === 'error' ? uiColors.dangerBg : uiColors.successBg,
-              borderColor: feedback.type === 'error' ? uiColors.dangerBorder : uiColors.successBorder,
-            }}
-          >
-            <Text
-              className="text-sm leading-5"
-              style={{ color: feedback.type === 'error' ? uiColors.dangerText : uiColors.buyText }}
-            >
-              {feedback.message}
-            </Text>
-          </Pressable>
-        )}
-
         <View className="mb-4 px-4">
           <View className="flex-row justify-between">
             <View className="flex-1 pr-2 border-r" style={{ borderRightColor: uiColors.divider }}>
@@ -1093,16 +1076,6 @@ export default function App() {
               {validationError}
             </Text>
           )}
-          {status === 'success' && (
-            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.buyText }}>
-              Order submitted{signature ? `: ${signature.slice(0, 6)}...${signature.slice(-6)}` : ''}.
-            </Text>
-          )}
-          {status === 'error' && orderError && (
-            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.dangerText }}>
-              {orderError}
-            </Text>
-          )}
 
           {selectedAccount ? (
             <Pressable
@@ -1178,17 +1151,6 @@ export default function App() {
                   </View>
                 )}
 
-                {closeStatus === 'success' && (
-                  <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.buyText }}>
-                    Position closed
-                    {closeSignature ? `: ${closeSignature.slice(0, 6)}...${closeSignature.slice(-6)}` : ''}.
-                  </Text>
-                )}
-                {closeStatus === 'error' && closeError && (
-                  <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.dangerText }}>
-                    {closeError}
-                  </Text>
-                )}
                 {streamingStateError && (
                   <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.dangerText }}>
                     {streamingStateError}
