@@ -58,7 +58,6 @@ const CHART_TIMEFRAMES = [
   { label: '5m', intervalMs: 5 * 60 * 1000 },
   { label: '1h', intervalMs: 60 * 60 * 1000 },
   { label: '1D', intervalMs: 24 * 60 * 60 * 1000 },
-  { label: '1W', intervalMs: 7 * 24 * 60 * 60 * 1000 },
 ] as const;
 
 const ENABLE_ADVANCED_CHART = process.env.EXPO_PUBLIC_ENABLE_ADVANCED_CHART !== 'false';
@@ -207,6 +206,7 @@ export default function App() {
   const [marketPanelTab, setMarketPanelTab] = useState<MarketPanelTab>('chart');
   const [positionPanelTab, setPositionPanelTab] = useState<PositionPanelTab>('active');
   const [chartTimeframe, setChartTimeframe] = useState<ChartTimeframe>('1h');
+  const [chartResetSignal, setChartResetSignal] = useState(0);
   const [crosshairData, setCrosshairData] = useState<TradingViewCrosshairData | null>(null);
   const [isChartTimeframeReady, setIsChartTimeframeReady] = useState(false);
   const [isSwitchingTimeframe, setIsSwitchingTimeframe] = useState(false);
@@ -481,6 +481,11 @@ export default function App() {
     setChartTimeframe(next);
   };
 
+  const handleResetChartView = useCallback(() => {
+    setChartResetSignal((previous) => previous + 1);
+    setCrosshairData(null);
+  }, []);
+
   const handleLoadMoreMarketHistory = useCallback(() => {
     void loadMoreHistory();
   }, [loadMoreHistory]);
@@ -708,8 +713,7 @@ export default function App() {
           {marketPanelTab === 'chart' && (
             <>
               <View className="flex-row items-center justify-between mb-3 px-4">
-                <Text className="text-white text-xl font-semibold leading-7 tracking-tight">Chart</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-1 mr-3">
                   <View className="flex-row items-end">
                     {CHART_TIMEFRAMES.map((option) => (
                       <Pressable
@@ -730,6 +734,17 @@ export default function App() {
                     ))}
                   </View>
                 </ScrollView>
+                {ENABLE_ADVANCED_CHART && (
+                  <Pressable
+                    onPress={handleResetChartView}
+                    className="px-3 py-1.5 border"
+                    style={{ borderColor: uiColors.divider }}
+                  >
+                    <Text className="text-xs font-semibold tracking-wide" style={{ color: uiColors.textSecondary }}>
+                      Reset
+                    </Text>
+                  </Pressable>
+                )}
               </View>
 
               {activeOhlcv && (
@@ -808,6 +823,7 @@ export default function App() {
                       lastCandle={latestTradingViewCandle}
                       onCrosshairMove={setCrosshairData}
                       onRequestMoreHistory={handleLoadMoreMarketHistory}
+                      resetSignal={chartResetSignal}
                       hasMoreHistory={hasMoreHistory}
                       loadingMoreHistory={loadingMoreHistory}
                       height={320}

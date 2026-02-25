@@ -30,6 +30,7 @@ interface TradingViewChartProps {
   lastCandle?: TradingViewCandle | null;
   onCrosshairMove?: (point: TradingViewCrosshairData | null) => void;
   onRequestMoreHistory?: () => void;
+  resetSignal?: number;
   hasMoreHistory?: boolean;
   loadingMoreHistory?: boolean;
   height?: number;
@@ -47,6 +48,7 @@ export function TradingViewChart({
   lastCandle = null,
   onCrosshairMove,
   onRequestMoreHistory,
+  resetSignal = 0,
   hasMoreHistory = true,
   loadingMoreHistory = false,
   height = 320,
@@ -113,6 +115,16 @@ export function TradingViewChart({
       }),
     );
   }, [isReady, lastCandle]);
+
+  useEffect(() => {
+    if (!isReady || !webViewRef.current || resetSignal <= 0) return;
+
+    webViewRef.current.postMessage(
+      JSON.stringify({
+        type: 'RESET_VIEW',
+      }),
+    );
+  }, [isReady, resetSignal]);
 
   const handleMessage = (raw: string) => {
     try {

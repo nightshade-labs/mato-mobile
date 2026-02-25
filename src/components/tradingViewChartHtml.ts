@@ -52,10 +52,28 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
       var currentLastTime = null;
       var HISTORY_LOAD_THRESHOLD_BARS = 20;
       var HISTORY_REQUEST_DEBOUNCE_MS = 600;
+      var PRICE_SCALE_TOUCH_WIDTH_PX = 80;
+      var basePriceScaleMargins = {
+        top: 0.08,
+        bottom: 0.28,
+      };
+      var priceScaleTopMargin = basePriceScaleMargins.top;
+      var PRICE_SCALE_TOP_MIN = 0.02;
+      var PRICE_SCALE_TOP_MAX = 0.32;
+      var PRICE_SCALE_ZOOM_SENSITIVITY = 0.0015;
       var historyState = {
         hasMore: true,
         loading: false,
         lastRequestAt: 0,
+      };
+      var touchGesture = {
+        active: false,
+        mode: 'idle',
+        startX: 0,
+        startY: 0,
+        startTopMargin: 0,
+        lastX: 0,
+        lastY: 0,
       };
       var container = document.getElementById('chart-container');
       var loadingEl = document.getElementById('loading');
@@ -77,6 +95,111 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
         historyState.lastRequestAt = now;
         historyState.loading = true;
         postToRN({ type: 'LOAD_MORE_HISTORY' });
+      }
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function applyPriceScaleTopMargin(nextTopMargin) {
+        if (!chart || !Number.isFinite(nextTopMargin)) return;
+        priceScaleTopMargin = clamp(nextTopMargin, PRICE_SCALE_TOP_MIN, PRICE_SCALE_TOP_MAX);
+        chart.applyOptions({
+          rightPriceScale: {
+            autoScale: false,
+            scaleMargins: {
+              top: priceScaleTopMargin,
+              bottom: basePriceScaleMargins.bottom,
+            },
+          },
+        });
+      }
+
+      function resetTouchGesture() {
+        touchGesture.active = false;
+        touchGesture.mode = 'idle';
+        touchGesture.startX = 0;
+        touchGesture.startY = 0;
+        touchGesture.startTopMargin = 0;
+        touchGesture.lastX = 0;
+        touchGesture.lastY = 0;
+      }
+
+      function handleTouchStart(event) {
+        if (!event || !event.touches || event.touches.length !== 1 || !container) {
+          resetTouchGesture();
+          return;
+        }
+
+        var touch = event.touches[0];
+        var rect = container.getBoundingClientRect();
+        var localX = touch.clientX - rect.left;
+        var isOnPriceScale = localX >= rect.width - PRICE_SCALE_TOUCH_WIDTH_PX;
+
+        if (isOnPriceScale && chart) {
+          chart.applyOptions({
+            rightPriceScale: {
+              autoScale: false,
+              scaleMargins: {
+                top: priceScaleTopMargin,
+                bottom: basePriceScaleMargins.bottom,
+              },
+            },
+          });
+        }
+
+        touchGesture.active = true;
+        touchGesture.mode = isOnPriceScale ? 'price-scale' : 'chart-pan';
+        touchGesture.startX = touch.clientX;
+        touchGesture.startY = touch.clientY;
+        touchGesture.startTopMargin = priceScaleTopMargin;
+        touchGesture.lastX = touch.clientX;
+        touchGesture.lastY = touch.clientY;
+      }
+
+      function handleTouchMove(event) {
+        if (!touchGesture.active || !event || !event.touches || event.touches.length !== 1) return;
+
+        var touch = event.touches[0];
+        if (touchGesture.mode === 'price-scale') {
+          event.preventDefault();
+          if (typeof event.stopPropagation === 'function') {
+            event.stopPropagation();
+          }
+          var totalDeltaY = touch.clientY - touchGesture.startY;
+          var nextTopMargin = touchGesture.startTopMargin - totalDeltaY * PRICE_SCALE_ZOOM_SENSITIVITY;
+          applyPriceScaleTopMargin(nextTopMargin);
+        }
+
+        touchGesture.lastX = touch.clientX;
+        touchGesture.lastY = touch.clientY;
+      }
+
+      function resetView() {
+        if (!chart) return;
+        priceScaleTopMargin = basePriceScaleMargins.top;
+        chart.applyOptions({
+          rightPriceScale: {
+            autoScale: true,
+            scaleMargins: {
+              top: basePriceScaleMargins.top,
+              bottom: basePriceScaleMargins.bottom,
+            },
+          },
+        });
+        chart.timeScale().fitContent();
+      }
+
+      function handleTouchEnd() {
+        resetTouchGesture();
+      }
+
+      function registerTouchHandlers() {
+        if (!container) return;
+        container.addEventListener('touchstart', handleTouchStart, { passive: true });
+        container.addEventListener('touchmove', handleTouchMove, { passive: false });
+        container.addEventListener('touchend', handleTouchEnd, { passive: true });
+        container.addEventListener('touchcancel', handleTouchEnd, { passive: true });
       }
 
       function initChart() {
@@ -109,7 +232,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
             },
             handleScroll: {
               horzTouchDrag: true,
-              vertTouchDrag: false,
+              vertTouchDrag: true,
               pressedMouseMove: true,
               mouseWheel: false,
             },
@@ -121,8 +244,8 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
             rightPriceScale: {
               borderColor: '${uiColors.chartGrid}',
               scaleMargins: {
-                top: 0.08,
-                bottom: 0.28,
+                top: basePriceScaleMargins.top,
+                bottom: basePriceScaleMargins.bottom,
               },
             },
             timeScale: {
@@ -198,6 +321,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
           chart.timeScale().subscribeVisibleLogicalRangeChange(function(range) {
             maybeRequestMoreHistory(range);
           });
+          registerTouchHandlers();
 
           isReady = true;
           loadingEl.style.display = 'none';
@@ -336,6 +460,9 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
               break;
             case 'HISTORY_STATUS':
               handleHistoryStatus(message);
+              break;
+            case 'RESET_VIEW':
+              resetView();
               break;
             default:
               break;
