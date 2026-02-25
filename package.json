@@ -58,6 +58,7 @@
     "react-native-screens": "~4.16.0",
     "react-native-wagmi-charts": "^2.9.1",
     "react-native-webview": "^13.16.0",
+    "sonner-native": "^0.23.1",
     "tailwindcss": "~4.1.16",
     "text-encoding": "^0.7.0",
     "uniwind": "~1.0.0"
