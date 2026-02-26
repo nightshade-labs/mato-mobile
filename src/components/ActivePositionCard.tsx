@@ -100,33 +100,33 @@ export function ActivePositionCard({
   if (streamingState) {
     const bookkeepingSnapshot = BigInt(position.bookkeepingSnapshot.toString());
     const liveBookkeeping = isBuy ? streamingState.bookkeepingBasePerQuote : streamingState.bookkeepingQuotePerBase;
-    const effectiveBookkeeping = hasPositionEnded ? endSlotBookkeepingSnapshot : liveBookkeeping;
+    const useEndSlotSnapshot =
+      hasPositionEnded && endSlotBookkeepingSnapshot !== null && endSlotBookkeepingSnapshot > bookkeepingSnapshot;
+    const effectiveBookkeeping = useEndSlotSnapshot ? endSlotBookkeepingSnapshot : liveBookkeeping;
+    const bookkeepingDelta = effectiveBookkeeping > bookkeepingSnapshot ? effectiveBookkeeping - bookkeepingSnapshot : 0n;
 
-    if (effectiveBookkeeping !== null) {
-      const bookkeepingDelta = effectiveBookkeeping > bookkeepingSnapshot ? effectiveBookkeeping - bookkeepingSnapshot : 0n;
-
-      let staleAccumulator = 0n;
-      if (!hasPositionEnded) {
-        const staleSlots = Math.max(0, currentSlot - streamingState.bookkeepingLastUpdateSlot);
-        if (staleSlots > 0) {
-          const staleSlotCount = BigInt(staleSlots);
-          if (isBuy) {
-            if (streamingState.marketQuoteFlow > 0n) {
-              staleAccumulator =
-                (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketBaseFlow * staleSlotCount) /
-                streamingState.marketQuoteFlow;
-            }
-          } else if (streamingState.marketBaseFlow > 0n) {
+    let staleAccumulator = 0n;
+    // If we couldn't use a reliable end-slot snapshot, estimate missing slots up to currentSlot.
+    if (!useEndSlotSnapshot) {
+      const staleSlots = Math.max(0, currentSlot - streamingState.bookkeepingLastUpdateSlot);
+      if (staleSlots > 0) {
+        const staleSlotCount = BigInt(staleSlots);
+        if (isBuy) {
+          if (streamingState.marketQuoteFlow > 0n) {
             staleAccumulator =
-              (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketQuoteFlow * staleSlotCount) /
-              streamingState.marketBaseFlow;
+              (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketBaseFlow * staleSlotCount) /
+              streamingState.marketQuoteFlow;
           }
+        } else if (streamingState.marketBaseFlow > 0n) {
+          staleAccumulator =
+            (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketQuoteFlow * staleSlotCount) /
+            streamingState.marketBaseFlow;
         }
       }
-
-      const accumulatedPrice = bookkeepingDelta + staleAccumulator;
-      swappedEstimateAtoms = (amountAtoms * accumulatedPrice) / (durationSlotsBigInt * BOOKKEEPING_PRECISION_FACTOR);
     }
+
+    const accumulatedPrice = bookkeepingDelta + staleAccumulator;
+    swappedEstimateAtoms = (amountAtoms * accumulatedPrice) / (durationSlotsBigInt * BOOKKEEPING_PRECISION_FACTOR);
   }
 
   return (
