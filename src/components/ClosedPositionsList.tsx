@@ -83,7 +83,9 @@ export function ClosedPositionsList({
 
   const content = (
     <>
-      {!embedded && <Text className="text-white text-2xl font-semibold tracking-tight leading-8 mb-4">Closed Positions</Text>}
+      {!embedded && (
+        <Text className="text-white text-2xl font-semibold tracking-tight leading-8 mb-4">Closed Positions</Text>
+      )}
 
       {loading ? (
         <ActivityIndicator size="small" color={uiColors.textMuted} />
@@ -173,7 +175,7 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
 
   const handleOpenTx = () => {
     if (event.signature) {
-      Linking.openURL(`https://solscan.io/tx/${event.signature}?cluster=testnet`);
+      Linking.openURL(`https://solscan.io/tx/${event.signature}?cluster=devnet`);
     }
   };
 
@@ -217,13 +219,19 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
             className="flex-row items-center justify-between mt-3 pt-3 border-t"
             style={{ borderTopColor: uiColors.divider }}
           >
-            <Text className="text-[14px] font-semibold leading-5" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+            <Text
+              className="text-[14px] font-semibold leading-5"
+              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+            >
               {formatAtomsToDisplay(consumedAtoms, depositDecimals)} {depositToken}
             </Text>
             <Text className="text-[11px] leading-4" style={{ color: uiColors.textSubtle }}>
               →
             </Text>
-            <Text className="text-[14px] font-semibold leading-5" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+            <Text
+              className="text-[14px] font-semibold leading-5"
+              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+            >
               {formatAtomsToDisplay(receivedAtoms, swappedDecimals)} {swappedToken}
             </Text>
             {effectivePrice !== null && (
@@ -238,36 +246,60 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
           <View className="mt-3 pt-3 border-t" style={{ borderTopColor: uiColors.divider }}>
             <View className="flex-row justify-between mb-2">
               <View className="flex-1 pr-2">
-                <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                <Text
+                  className="text-[10px] font-semibold leading-4"
+                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                >
                   Deposited
                 </Text>
-                <Text className="text-[14px] font-semibold leading-5" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+                <Text
+                  className="text-[14px] font-semibold leading-5"
+                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                >
                   {formatAtomsToDisplay(depositedAtoms, depositDecimals)} {depositToken}
                 </Text>
               </View>
               <View className="flex-1 pl-2">
-                <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                <Text
+                  className="text-[10px] font-semibold leading-4"
+                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                >
                   {consumedLabel}
                 </Text>
-                <Text className="text-[14px] font-semibold leading-5" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+                <Text
+                  className="text-[14px] font-semibold leading-5"
+                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                >
                   {formatAtomsToDisplay(consumedAtoms, depositDecimals)} {depositToken}
                 </Text>
               </View>
             </View>
             <View className="flex-row justify-between mb-2">
               <View className="flex-1 pr-2">
-                <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                <Text
+                  className="text-[10px] font-semibold leading-4"
+                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                >
                   Received
                 </Text>
-                <Text className="text-[14px] font-semibold leading-5" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+                <Text
+                  className="text-[14px] font-semibold leading-5"
+                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                >
                   {formatAtomsToDisplay(receivedAtoms, swappedDecimals)} {swappedToken}
                 </Text>
               </View>
               <View className="flex-1 pl-2">
-                <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                <Text
+                  className="text-[10px] font-semibold leading-4"
+                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                >
                   Fee
                 </Text>
-                <Text className="text-[14px] font-semibold leading-5" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+                <Text
+                  className="text-[14px] font-semibold leading-5"
+                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                >
                   {formatAtomsToDisplay(feeAtoms, feeDecimals)} {feeToken}
                 </Text>
               </View>
@@ -276,7 +308,10 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
               <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
                 {effectivePriceLabel}
               </Text>
-              <Text className="text-[14px] font-semibold leading-5" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+              <Text
+                className="text-[14px] font-semibold leading-5"
+                style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+              >
                 {effectivePrice === null ? '—' : `${formatPrice(effectivePrice)} ${quoteTicker}/${baseTicker}`}
               </Text>
             </View>
