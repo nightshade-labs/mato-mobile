@@ -253,7 +253,7 @@ style: |
 
 - **Toxic MEV drains billions** — 82k SOL extracted from Solana users via sandwich attacks in February 2026
 - **Retail traders get rekt** — 1–5% hidden "tax" per trade via slippage, sandwiches, and timing games
-- **Latency arms race favors bots** — Fast execution advantages go to searchers/validators, not everyday mobile traders on Seeker
+- **Latency arms race favors bots** — Fast execution advantages go to searchers/validators, not everyday traders
 - **Shallow liquidity** — Large orders slam prices
 
 ---
@@ -284,7 +284,7 @@ style: |
 - Choose amount + duration
   (e.g., spent 500 USDC over 1 hour)
 - Every incoming or outgoing order updates market price
-- All active orders stream at current market price
+- All active orders swap at current market price
 
 ![bg right:32% 70%](./assets/order.jpg)
 
