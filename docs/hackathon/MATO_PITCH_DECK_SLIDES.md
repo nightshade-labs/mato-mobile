@@ -249,12 +249,12 @@ style: |
 
 ---
 
-## What Internet Capital Markets Need
+## The Problem: Current DEXes Block Internet Capital Markets
 
-- Less toxic flow and timing games
-- Deep liquidity
-- Fast, credible price discovery
-- Fair execution quality across participants
+- **Toxic MEV drains billions** — 82k SOL extracted from Solana users via sandwich attacks in February 2026
+- **Retail traders get rekt** — 1–5% hidden "tax" per trade via slippage, sandwiches, and timing games
+- **Latency arms race favors bots** — Fast execution advantages go to searchers/validators, not everyday mobile traders on Seeker
+- **Shallow liquidity** — Large orders slam prices
 
 ---
 
@@ -263,6 +263,8 @@ style: |
 - Orders stream continuously over user-chosen duration
 - Uniform clearing price per time unit
   → no sandwich attacks
+
+![w:100%](./assets/streaming.svg)
 
 ---
 
@@ -279,9 +281,12 @@ style: |
 
 <p class="kicker">Order = Quantity + Limit* + Duration</p>
 
-- Choose amount + duration (e.g., sell 25 SOL over 10s)
+- Choose amount + duration
+  (e.g., spent 500 USDC over 1 hour)
 - Every incoming or outgoing order updates market price
 - All active orders stream at current market price
+
+![bg right:32% 70%](./assets/order.jpg)
 
 <p class="mini">*Limit orders are not implemented yet</p>
 
@@ -299,6 +304,8 @@ style: |
 ---
 
 ## What we built
+
+<p class="kicker">Live product demo</p>
 
 ---
 
@@ -326,6 +333,7 @@ style: |
   <div class="team-card">
     <img class="team-avatar" src="./assets/froots.png" alt="Thomas avatar placeholder" />
     <p class="team-name">Thomas</p>
+    <p class="team-role">@thgehr</p>
     <p class="team-role">Product, protocol design, and engineering.</p>
     <ul class="team-bullets">
       <li>Superteam Germany member.</li>
@@ -336,11 +344,12 @@ style: |
   <div class="team-card">
     <img class="team-avatar" src="./assets/gopi.jpg" alt="Gopi avatar placeholder" />
     <p class="team-name">Gopi</p>
+    <p class="team-role">@gopiium</p>
     <p class="team-role">Engineering and partnerships.</p>
     <ul class="team-bullets">
       <li>President of TUM Blockchain Club.</li>
       <li>Software Engineer @SolanaBeach.</li>
-      <li>Background in Computer Science.</li>
+      <li>Background in computer science.</li>
     </ul>
   </div>
 </div>
@@ -352,8 +361,8 @@ style: |
 ## Ask + Roadmap
 
 - Pilot partners for TWOB market-quality testing
-- Liquidity collaborators and benchmark reviewers
-- Mainnet hardening toward production rollouts
+- Security audit
+- Limit orders
 
 **Mato is a market structure bet.**
 
