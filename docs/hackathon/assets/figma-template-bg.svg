@@ -1,0 +1,15 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="figmaTemplateBg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(960 -482.544) scale(1547.42 1547.42)">
+      <stop offset="0.0385" stop-color="#C5FFF8" />
+      <stop offset="0.2019" stop-color="#8DFFF0" />
+      <stop offset="0.3702" stop-color="#00B49F" />
+      <stop offset="0.6106" stop-color="#134156" />
+      <stop offset="0.8279" stop-color="#0E151A" />
+      <stop offset="1" stop-color="#0F0F0F" />
+    </radialGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#figmaTemplateBg)" />
+</svg>
