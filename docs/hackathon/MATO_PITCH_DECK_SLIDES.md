@@ -185,6 +185,55 @@ style: |
     font-weight: 700;
     margin: 6px 0 0 0;
   }
+
+  .team-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin-top: 10px;
+  }
+
+  .team-card {
+    border: 1px solid #38537e;
+    border-radius: 16px;
+    background: rgba(12, 20, 39, 0.72);
+    padding: 22px;
+  }
+
+  .team-avatar {
+    width: 96px;
+    height: 96px;
+    border-radius: 999px;
+    object-fit: cover;
+    border: 2px solid #14f1b2;
+    margin-bottom: 12px;
+  }
+
+  .team-name {
+    font-family: 'Pixeloid Sans', 'Press Start 2P', monospace;
+    font-size: 32px;
+    line-height: 1;
+    color: #ffffff;
+    margin: 0 0 8px 0;
+    text-transform: uppercase;
+  }
+
+  .team-role {
+    font-size: 20px;
+    line-height: 1.35;
+    color: #c9d8f7;
+    margin: 0 0 10px 0;
+  }
+
+  .team-bullets {
+    font-size: 20px;
+    line-height: 1.35;
+    margin: 0 0 0 20px;
+  }
+
+  .team-bullets li {
+    margin-bottom: 8px;
+  }
 ---
 
 <!-- _class: title-slide -->
@@ -266,6 +315,37 @@ style: |
 
 - Uniform clearing, zero sandwiches
 - Native Dollar-cost-averaging, smoother avg prices
+
+---
+
+## Team
+
+<p class="kicker">Two builders, one wedge: Internet Capital Markets</p>
+
+<div class="team-grid">
+  <div class="team-card">
+    <img class="team-avatar" src="./assets/froots.png" alt="Thomas avatar placeholder" />
+    <p class="team-name">Thomas</p>
+    <p class="team-role">Product, protocol design, and engineering.</p>
+    <ul class="team-bullets">
+      <li>Superteam Germany member.</li>
+      <li>Software Engineer @StakingFacilities.</li>
+      <li>Background in physics and economics.</li>
+    </ul>
+  </div>
+  <div class="team-card">
+    <img class="team-avatar" src="./assets/gopi.jpg" alt="Gopi avatar placeholder" />
+    <p class="team-name">Gopi</p>
+    <p class="team-role">Engineering and partnerships.</p>
+    <ul class="team-bullets">
+      <li>President of TUM Blockchain Club.</li>
+      <li>Software Engineer @SolanaBeach.</li>
+      <li>Background in Computer Science.</li>
+    </ul>
+  </div>
+</div>
+
+<p class="mini muted">Combined edge: protocol insight + production execution.</p>
 
 ---
 
