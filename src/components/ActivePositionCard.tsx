@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { PublicKey } from '@solana/web3.js';
 import { Pressable, Text, View } from 'react-native';
 import type { TextStyle } from 'react-native';
@@ -23,6 +23,8 @@ interface ActivePositionCardProps {
 const BOOKKEEPING_PRECISION_FACTOR = 1_000_000_000_000_000n;
 const TABULAR_NUMS: TextStyle = { fontVariant: ['tabular-nums'] };
 const OVERLINE: TextStyle = { textTransform: 'uppercase', letterSpacing: 0.8 };
+type CachedSwappedEstimate = { amount: bigint; source: 'active' | 'fallback' | 'snapshot' };
+const lastSwappedEstimateByPosition = new Map<string, CachedSwappedEstimate>();
 
 function formatAtomsToDisplay(amountAtoms: bigint, decimals: number): string {
   if (amountAtoms <= 0n) return '0';
@@ -64,6 +66,7 @@ export function ActivePositionCard({
   streamingState,
 }: ActivePositionCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const lastActiveSwappedEstimateRef = useRef<bigint | null>(null);
   const isBuy = position.isBuy;
   const depositedToken = isBuy ? quoteTicker : baseTicker;
   const depositedDecimals = isBuy ? quoteDecimals : baseDecimals;
@@ -71,6 +74,7 @@ export function ActivePositionCard({
   const swappedDecimals = isBuy ? baseDecimals : quoteDecimals;
   const sideLabel = isBuy ? 'Buy' : 'Sell';
   const flowLabel = isBuy ? `${quoteTicker} → ${baseTicker}` : `${baseTicker} → ${quoteTicker}`;
+  const positionKey = position.publicKey.toBase58();
 
   const amountAtoms = BigInt(position.amount.toString());
   const startSlot = toSlotNumber(position.startSlot);
@@ -92,6 +96,7 @@ export function ActivePositionCard({
     market,
     endSlot,
     endSlotInterval: streamingState?.endSlotInterval ?? null,
+    currentSlot: streamingState?.currentSlot ?? null,
     isBuy,
     enabled: hasPositionEnded,
   });
@@ -100,14 +105,10 @@ export function ActivePositionCard({
   if (streamingState) {
     const bookkeepingSnapshot = BigInt(position.bookkeepingSnapshot.toString());
     const liveBookkeeping = isBuy ? streamingState.bookkeepingBasePerQuote : streamingState.bookkeepingQuotePerBase;
-    const useEndSlotSnapshot =
-      hasPositionEnded && endSlotBookkeepingSnapshot !== null && endSlotBookkeepingSnapshot > bookkeepingSnapshot;
-    const effectiveBookkeeping = useEndSlotSnapshot ? endSlotBookkeepingSnapshot : liveBookkeeping;
-    const bookkeepingDelta = effectiveBookkeeping > bookkeepingSnapshot ? effectiveBookkeeping - bookkeepingSnapshot : 0n;
+    const liveBookkeepingDelta = liveBookkeeping > bookkeepingSnapshot ? liveBookkeeping - bookkeepingSnapshot : 0n;
 
     let staleAccumulator = 0n;
-    // If we couldn't use a reliable end-slot snapshot, estimate missing slots up to currentSlot.
-    if (!useEndSlotSnapshot) {
+    if (!hasPositionEnded) {
       const staleSlots = Math.max(0, currentSlot - streamingState.bookkeepingLastUpdateSlot);
       if (staleSlots > 0) {
         const staleSlotCount = BigInt(staleSlots);
@@ -125,8 +126,45 @@ export function ActivePositionCard({
       }
     }
 
-    const accumulatedPrice = bookkeepingDelta + staleAccumulator;
-    swappedEstimateAtoms = (amountAtoms * accumulatedPrice) / (durationSlotsBigInt * BOOKKEEPING_PRECISION_FACTOR);
+    const liveAccumulatedPrice = liveBookkeepingDelta + staleAccumulator;
+    const liveSwappedEstimate = (amountAtoms * liveAccumulatedPrice) / (durationSlotsBigInt * BOOKKEEPING_PRECISION_FACTOR);
+
+    if (!hasPositionEnded) {
+      swappedEstimateAtoms = liveSwappedEstimate;
+      lastActiveSwappedEstimateRef.current = liveSwappedEstimate;
+      lastSwappedEstimateByPosition.set(positionKey, { amount: liveSwappedEstimate, source: 'active' });
+    } else {
+      const cachedEstimate = lastSwappedEstimateByPosition.get(positionKey) ?? null;
+      const snapshotDelta =
+        endSlotBookkeepingSnapshot !== null && endSlotBookkeepingSnapshot > bookkeepingSnapshot
+          ? endSlotBookkeepingSnapshot - bookkeepingSnapshot
+          : null;
+      const snapshotSwappedEstimate =
+        snapshotDelta === null
+          ? null
+          : (amountAtoms * snapshotDelta) / (durationSlotsBigInt * BOOKKEEPING_PRECISION_FACTOR);
+
+      const frozenAtEnd = lastActiveSwappedEstimateRef.current ?? cachedEstimate?.amount ?? null;
+      if (snapshotSwappedEstimate === null) {
+        if (frozenAtEnd !== null) {
+          swappedEstimateAtoms = frozenAtEnd;
+        } else {
+          // Snapshot can lag by ~ARRAY_LENGTH*endSlotInterval slots; keep a stable fallback meanwhile.
+          swappedEstimateAtoms = liveSwappedEstimate;
+          lastSwappedEstimateByPosition.set(positionKey, { amount: liveSwappedEstimate, source: 'fallback' });
+        }
+      } else {
+        const shouldClampDrop =
+          frozenAtEnd !== null &&
+          (lastActiveSwappedEstimateRef.current !== null || cachedEstimate?.source === 'active');
+        swappedEstimateAtoms = shouldClampDrop
+          ? snapshotSwappedEstimate > frozenAtEnd
+            ? snapshotSwappedEstimate
+            : frozenAtEnd
+          : snapshotSwappedEstimate;
+        lastSwappedEstimateByPosition.set(positionKey, { amount: swappedEstimateAtoms, source: 'snapshot' });
+      }
+    }
   }
 
   return (

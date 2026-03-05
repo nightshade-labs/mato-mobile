@@ -11,16 +11,16 @@ interface SnapshotLocation {
   snapshotIndex: number;
 }
 
-function resolveSnapshotLocation(endSlot: number, endSlotInterval: number): SnapshotLocation | null {
-  if (!Number.isFinite(endSlot) || endSlot < 0) return null;
+function resolveSnapshotLocation(slot: number, endSlotInterval: number): SnapshotLocation | null {
+  if (!Number.isFinite(slot) || slot < 0) return null;
   if (!Number.isFinite(endSlotInterval) || endSlotInterval <= 0) return null;
 
   const slotsPerPricesAccount = ARRAY_LENGTH * endSlotInterval;
   if (!Number.isFinite(slotsPerPricesAccount) || slotsPerPricesAccount <= 0) return null;
 
   return {
-    pricesAccountIndex: Math.floor(endSlot / slotsPerPricesAccount),
-    snapshotIndex: Math.floor(endSlot / endSlotInterval) % ARRAY_LENGTH,
+    pricesAccountIndex: Math.floor(slot / slotsPerPricesAccount),
+    snapshotIndex: Math.floor(slot / endSlotInterval) % ARRAY_LENGTH,
   };
 }
 
@@ -28,6 +28,7 @@ interface UseEndSlotBookkeepingSnapshotArgs {
   market: PublicKey;
   endSlot: number;
   endSlotInterval: number | null;
+  currentSlot: number | null;
   isBuy: boolean;
   enabled?: boolean;
 }
@@ -36,6 +37,7 @@ export function useEndSlotBookkeepingSnapshot({
   market,
   endSlot,
   endSlotInterval,
+  currentSlot,
   isBuy,
   enabled = true,
 }: UseEndSlotBookkeepingSnapshotArgs) {
@@ -45,6 +47,14 @@ export function useEndSlotBookkeepingSnapshot({
     if (endSlotInterval === null) return null;
     return resolveSnapshotLocation(endSlot, endSlotInterval);
   }, [endSlot, endSlotInterval]);
+  const snapshotReadySlot = useMemo(() => {
+    if (endSlotInterval === null || endSlotInterval <= 0) return null;
+    return endSlot + ARRAY_LENGTH * endSlotInterval;
+  }, [endSlot, endSlotInterval]);
+  const isSnapshotLikelyReady = useMemo(() => {
+    if (currentSlot === null || snapshotReadySlot === null) return false;
+    return currentSlot >= snapshotReadySlot;
+  }, [currentSlot, snapshotReadySlot]);
 
   const query = useQuery<bigint | null>({
     queryKey: [
@@ -54,22 +64,52 @@ export function useEndSlotBookkeepingSnapshot({
       snapshotLocation?.snapshotIndex ?? 'none',
       isBuy ? 'buy' : 'sell',
     ],
-    enabled: enabled && snapshotLocation !== null,
+    enabled: enabled && snapshotLocation !== null && isSnapshotLikelyReady,
     staleTime: Infinity,
+    refetchInterval: (query) => {
+      if (!enabled || snapshotLocation === null || !isSnapshotLikelyReady) return false;
+      return query.state.data === null ? 2000 : false;
+    },
     queryFn: async () => {
       if (!snapshotLocation) return null;
+      const fallbackLocation =
+        endSlotInterval !== null && endSlotInterval > 0
+          ? resolveSnapshotLocation(endSlot - endSlotInterval, endSlotInterval)
+          : null;
 
-      const pricesPda = resolver.pricesPda(market, new BN(snapshotLocation.pricesAccountIndex));
+      const candidateLocations = [snapshotLocation, fallbackLocation].filter(
+        (location): location is SnapshotLocation => location !== null,
+      );
+      const uniquePricesIndices = Array.from(new Set(candidateLocations.map((location) => location.pricesAccountIndex)));
+      const fetchedByIndex = new Map<number, any>();
 
-      try {
-        const pricesAccount = await program.account.prices.fetch(pricesPda);
+      await Promise.all(
+        uniquePricesIndices.map(async (index) => {
+          try {
+            const pricesPda = resolver.pricesPda(market, new BN(index));
+            const pricesAccount = await program.account.prices.fetch(pricesPda);
+            fetchedByIndex.set(index, pricesAccount);
+          } catch {
+            fetchedByIndex.set(index, null);
+          }
+        }),
+      );
+
+      const readSnapshot = (location: SnapshotLocation): bigint | null => {
+        const pricesAccount = fetchedByIndex.get(location.pricesAccountIndex);
+        if (!pricesAccount) return null;
         const snapshots = isBuy ? pricesAccount.basePerQuoteSnapshot : pricesAccount.quotePerBaseSnapshot;
-        const snapshot = snapshots[snapshotLocation.snapshotIndex];
+        const snapshot = snapshots[location.snapshotIndex];
         if (snapshot === undefined || snapshot === null) return null;
         return BigInt(snapshot.toString());
-      } catch {
-        return null;
-      }
+      };
+
+      const primarySnapshot = readSnapshot(snapshotLocation);
+      const fallbackSnapshot = fallbackLocation ? readSnapshot(fallbackLocation) : null;
+
+      if (primarySnapshot === null) return fallbackSnapshot;
+      if (fallbackSnapshot === null) return primarySnapshot;
+      return primarySnapshot >= fallbackSnapshot ? primarySnapshot : fallbackSnapshot;
     },
   });
 
@@ -77,6 +117,6 @@ export function useEndSlotBookkeepingSnapshot({
     snapshot: query.data ?? null,
     loading: query.isPending || query.isFetching,
     error: query.error instanceof Error ? query.error.message : null,
+    isSnapshotLikelyReady,
   };
 }
-
