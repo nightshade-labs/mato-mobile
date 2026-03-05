@@ -53,6 +53,26 @@ function toSlotNumber(value: { toString(): string }): number {
   return Number(value.toString());
 }
 
+function computeAveragePrice(
+  quoteAtoms: bigint,
+  quoteDecimals: number,
+  baseAtoms: bigint,
+  baseDecimals: number,
+): number | null {
+  if (baseAtoms <= 0n) return null;
+  const quoteUi = Number(quoteAtoms) / 10 ** quoteDecimals;
+  const baseUi = Number(baseAtoms) / 10 ** baseDecimals;
+  if (baseUi === 0) return null;
+  const price = quoteUi / baseUi;
+  if (!Number.isFinite(price) || price <= 0) return null;
+  return price;
+}
+
+function formatPrice(value: number): string {
+  if (value >= 1) return value.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  return value.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+}
+
 export function ActivePositionCard({
   market,
   position,
@@ -90,6 +110,7 @@ export function ActivePositionCard({
   const spentAtomsUncapped = (amountAtoms * elapsedSlotsBigInt) / durationSlotsBigInt;
   const spentAtoms = spentAtomsUncapped > amountAtoms ? amountAtoms : spentAtomsUncapped;
   const remainingAtoms = amountAtoms > spentAtoms ? amountAtoms - spentAtoms : 0n;
+  const consumedAtoms = spentAtoms;
   const remainingPercent = amountAtoms > 0n ? Number((remainingAtoms * 10000n) / amountAtoms) / 100 : 0;
   const progressPercent = Math.max(0, 100 - remainingPercent);
   const { snapshot: endSlotBookkeepingSnapshot } = useEndSlotBookkeepingSnapshot({
@@ -127,7 +148,8 @@ export function ActivePositionCard({
     }
 
     const liveAccumulatedPrice = liveBookkeepingDelta + staleAccumulator;
-    const liveSwappedEstimate = (amountAtoms * liveAccumulatedPrice) / (durationSlotsBigInt * BOOKKEEPING_PRECISION_FACTOR);
+    const liveSwappedEstimate =
+      (amountAtoms * liveAccumulatedPrice) / (durationSlotsBigInt * BOOKKEEPING_PRECISION_FACTOR);
 
     if (!hasPositionEnded) {
       swappedEstimateAtoms = liveSwappedEstimate;
@@ -167,6 +189,14 @@ export function ActivePositionCard({
     }
   }
 
+  const averagePrice = (() => {
+    if (swappedEstimateAtoms === null) return null;
+    const quoteAtoms = isBuy ? consumedAtoms : swappedEstimateAtoms;
+    const baseAtoms = isBuy ? swappedEstimateAtoms : consumedAtoms;
+    return computeAveragePrice(quoteAtoms, quoteDecimals, baseAtoms, baseDecimals);
+  })();
+  const averagePriceLabel = isBuy ? 'Average Price' : 'Average Price';
+
   return (
     <View
       className="rounded-xl p-4 mb-3"
@@ -191,7 +221,10 @@ export function ActivePositionCard({
             </Text>
           </View>
           <View className="flex-row items-center">
-            <Text className="text-[14px] font-semibold leading-5 mr-2.5" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+            <Text
+              className="text-[14px] font-semibold leading-5 mr-2.5"
+              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+            >
               {formatAtomsToDisplay(amountAtoms, depositedDecimals)} {depositedToken}
             </Text>
             <Text className="text-[11px] leading-4" style={{ color: uiColors.textSubtle }}>
@@ -220,41 +253,76 @@ export function ActivePositionCard({
           <View className="mt-3 pt-3 border-t" style={{ borderTopColor: uiColors.divider }}>
             <View className="flex-row justify-between mb-2">
               <View className="flex-1 pr-2">
-                <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                <Text
+                  className="text-[10px] font-semibold leading-4"
+                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                >
                   Deposited
                 </Text>
-                <Text className="text-[14px] font-semibold leading-5" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+                <Text
+                  className="text-[14px] font-semibold leading-5"
+                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                >
                   {formatAtomsToDisplay(amountAtoms, depositedDecimals)} {depositedToken}
                 </Text>
               </View>
               <View className="flex-1 pl-2">
-                <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                <Text
+                  className="text-[10px] font-semibold leading-4"
+                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                >
                   Remaining
                 </Text>
-                <Text className="text-[14px] font-semibold leading-5" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+                <Text
+                  className="text-[14px] font-semibold leading-5"
+                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                >
                   {formatAtomsToDisplay(remainingAtoms, depositedDecimals)} {depositedToken}
                 </Text>
               </View>
             </View>
             <View className="flex-row justify-between">
               <View className="flex-1 pr-2">
-                <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                <Text
+                  className="text-[10px] font-semibold leading-4"
+                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                >
                   Flow
                 </Text>
-                <Text className="text-[14px] font-semibold leading-5" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+                <Text
+                  className="text-[14px] font-semibold leading-5"
+                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                >
                   {formatAtomsToDisplay(flowAtomsPerSlot, depositedDecimals)} {depositedToken}/Slot
                 </Text>
               </View>
               <View className="flex-1 pl-2">
-                <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                <Text
+                  className="text-[10px] font-semibold leading-4"
+                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                >
                   Swapped
                 </Text>
-                <Text className="text-[14px] font-semibold leading-5" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
+                <Text
+                  className="text-[14px] font-semibold leading-5"
+                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                >
                   {swappedEstimateAtoms === null
                     ? '—'
                     : `${formatAtomsToDisplay(swappedEstimateAtoms, swappedDecimals)} ${swappedToken}`}
                 </Text>
               </View>
+            </View>
+            <View className="mt-2 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
+              <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                {averagePriceLabel}
+              </Text>
+              <Text
+                className="text-[14px] font-semibold leading-5"
+                style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+              >
+                {averagePrice === null ? '—' : `${formatPrice(averagePrice)} ${quoteTicker}/${baseTicker}`}
+              </Text>
             </View>
           </View>
 
