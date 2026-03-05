@@ -187,6 +187,18 @@ export function ActivePositionCard({
         lastSwappedEstimateByPosition.set(positionKey, { amount: swappedEstimateAtoms, source: 'snapshot' });
       }
     }
+
+    const cachedAmount = lastSwappedEstimateByPosition.get(positionKey)?.amount ?? null;
+    if (swappedEstimateAtoms !== null && cachedAmount !== null && swappedEstimateAtoms < cachedAmount) {
+      swappedEstimateAtoms = cachedAmount;
+    }
+    if (swappedEstimateAtoms !== null) {
+      const cachedSource = lastSwappedEstimateByPosition.get(positionKey)?.source;
+      lastSwappedEstimateByPosition.set(positionKey, {
+        amount: swappedEstimateAtoms,
+        source: cachedSource ?? (hasPositionEnded ? 'snapshot' : 'active'),
+      });
+    }
   }
 
   const averagePrice = (() => {
