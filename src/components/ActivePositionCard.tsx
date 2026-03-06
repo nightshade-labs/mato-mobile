@@ -26,6 +26,8 @@ const TABULAR_NUMS: TextStyle = { fontVariant: ['tabular-nums'] };
 const OVERLINE: TextStyle = { textTransform: 'uppercase', letterSpacing: 0.8 };
 type CachedSwappedEstimate = { amount: bigint; consumedAtoms: bigint; source: 'active' | 'fallback' | 'snapshot' };
 const lastSwappedEstimateByPosition = new Map<string, CachedSwappedEstimate>();
+type CachedTerminalEstimate = { amount: bigint; consumedAtoms: bigint };
+const projectedEndEstimateByPosition = new Map<string, CachedTerminalEstimate>();
 
 function formatAtomsToDisplay(amountAtoms: bigint, decimals: number): string {
   if (amountAtoms <= 0n) return '0';
@@ -116,6 +118,11 @@ export function ActivePositionCard({
   const scaledRemainingAtoms = scaledDepositAtoms > scaledSpentAtoms ? scaledDepositAtoms - scaledSpentAtoms : 0n;
   const remainingAtoms = scaledRemainingAtoms / FLOW_PRECISION_FACTOR;
   const consumedAtoms = amountAtoms > remainingAtoms ? amountAtoms - remainingAtoms : 0n;
+  const scaledSpentAtEndUncapped = durationSlotsBigInt * scaledFlowAtomsPerSlot;
+  const scaledSpentAtEnd = scaledSpentAtEndUncapped > scaledDepositAtoms ? scaledDepositAtoms : scaledSpentAtEndUncapped;
+  const scaledRemainingAtEnd = scaledDepositAtoms > scaledSpentAtEnd ? scaledDepositAtoms - scaledSpentAtEnd : 0n;
+  const remainingAtomsAtEnd = scaledRemainingAtEnd / FLOW_PRECISION_FACTOR;
+  const consumedAtomsAtEnd = amountAtoms > remainingAtomsAtEnd ? amountAtoms - remainingAtomsAtEnd : 0n;
   const remainingPercent = amountAtoms > 0n ? Number((remainingAtoms * 10000n) / amountAtoms) / 100 : 0;
   const progressPercent = Math.max(0, 100 - remainingPercent);
   const { snapshot: endSlotBookkeepingSnapshot } = useEndSlotBookkeepingSnapshot({
@@ -157,14 +164,34 @@ export function ActivePositionCard({
     const liveSwappedEstimate =
       (scaledFlowAtomsPerSlot * liveAccumulatedPrice) / (FLOW_PRECISION_FACTOR * BOOKKEEPING_PRECISION_FACTOR);
 
+    let perSlotBookkeepingAccumulator = 0n;
+    if (isBuy) {
+      if (streamingState.marketQuoteFlow > 0n) {
+        perSlotBookkeepingAccumulator =
+          (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketBaseFlow) / streamingState.marketQuoteFlow;
+      }
+    } else if (streamingState.marketBaseFlow > 0n) {
+      perSlotBookkeepingAccumulator =
+        (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketQuoteFlow) / streamingState.marketBaseFlow;
+    }
+    const slotsToEnd = Math.max(0, endSlot - currentSlot);
+    const projectedAccumulatedAtEnd = liveAccumulatedPrice + perSlotBookkeepingAccumulator * BigInt(slotsToEnd);
+    const projectedEndSwappedEstimate =
+      (scaledFlowAtomsPerSlot * projectedAccumulatedAtEnd) / (FLOW_PRECISION_FACTOR * BOOKKEEPING_PRECISION_FACTOR);
+
     if (!hasPositionEnded) {
       swappedEstimateAtoms = liveSwappedEstimate;
       consumedAtomsForAverage = consumedAtoms;
       lastActiveSwappedEstimateRef.current = liveSwappedEstimate;
       lastActiveConsumedAtomsRef.current = consumedAtoms;
       lastSwappedEstimateByPosition.set(positionKey, { amount: liveSwappedEstimate, consumedAtoms, source: 'active' });
+      projectedEndEstimateByPosition.set(positionKey, {
+        amount: projectedEndSwappedEstimate,
+        consumedAtoms: consumedAtomsAtEnd,
+      });
     } else {
       const cachedEstimate = lastSwappedEstimateByPosition.get(positionKey) ?? null;
+      const projectedTerminalEstimate = projectedEndEstimateByPosition.get(positionKey) ?? null;
       const snapshotDelta =
         endSlotBookkeepingSnapshot !== null && endSlotBookkeepingSnapshot > bookkeepingSnapshot
           ? endSlotBookkeepingSnapshot - bookkeepingSnapshot
@@ -176,10 +203,20 @@ export function ActivePositionCard({
 
       const frozenAtEnd = lastActiveSwappedEstimateRef.current ?? cachedEstimate?.amount ?? null;
       const frozenConsumedAtEnd = lastActiveConsumedAtomsRef.current ?? cachedEstimate?.consumedAtoms ?? null;
+      let terminalFallbackAmount = frozenAtEnd;
+      let terminalFallbackConsumed = frozenConsumedAtEnd ?? consumedAtoms;
+      if (
+        projectedTerminalEstimate !== null &&
+        (terminalFallbackAmount === null || projectedTerminalEstimate.amount > terminalFallbackAmount)
+      ) {
+        terminalFallbackAmount = projectedTerminalEstimate.amount;
+        terminalFallbackConsumed = projectedTerminalEstimate.consumedAtoms;
+      }
+
       if (snapshotSwappedEstimate === null) {
-        if (frozenAtEnd !== null) {
-          swappedEstimateAtoms = frozenAtEnd;
-          consumedAtomsForAverage = frozenConsumedAtEnd ?? consumedAtoms;
+        if (terminalFallbackAmount !== null) {
+          swappedEstimateAtoms = terminalFallbackAmount;
+          consumedAtomsForAverage = terminalFallbackConsumed;
         } else {
           // Snapshot can lag by ~ARRAY_LENGTH*endSlotInterval slots; keep a stable fallback meanwhile.
           swappedEstimateAtoms = liveSwappedEstimate;
@@ -192,17 +229,17 @@ export function ActivePositionCard({
         }
       } else {
         const shouldClampDrop =
-          frozenAtEnd !== null &&
-          (lastActiveSwappedEstimateRef.current !== null || cachedEstimate?.source === 'active');
-        const useFrozen = shouldClampDrop && snapshotSwappedEstimate <= frozenAtEnd;
-
-        if (useFrozen) {
-          swappedEstimateAtoms = frozenAtEnd;
-          consumedAtomsForAverage = frozenConsumedAtEnd ?? consumedAtoms;
+          terminalFallbackAmount !== null &&
+          (lastActiveSwappedEstimateRef.current !== null ||
+            cachedEstimate?.source === 'active' ||
+            projectedTerminalEstimate !== null);
+        if (shouldClampDrop && terminalFallbackAmount !== null && snapshotSwappedEstimate <= terminalFallbackAmount) {
+          swappedEstimateAtoms = terminalFallbackAmount;
+          consumedAtomsForAverage = terminalFallbackConsumed;
           lastSwappedEstimateByPosition.set(positionKey, {
-            amount: swappedEstimateAtoms,
+            amount: terminalFallbackAmount,
             consumedAtoms: consumedAtomsForAverage,
-            source: cachedEstimate?.source ?? 'active',
+            source: projectedTerminalEstimate !== null ? 'fallback' : cachedEstimate?.source ?? 'active',
           });
         } else {
           swappedEstimateAtoms = snapshotSwappedEstimate;
