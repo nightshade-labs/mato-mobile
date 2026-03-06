@@ -21,6 +21,7 @@ interface ActivePositionCardProps {
 }
 
 const BOOKKEEPING_PRECISION_FACTOR = 1_000_000_000_000_000n;
+const FLOW_PRECISION_FACTOR = 1_000_000_000n;
 const TABULAR_NUMS: TextStyle = { fontVariant: ['tabular-nums'] };
 const OVERLINE: TextStyle = { textTransform: 'uppercase', letterSpacing: 0.8 };
 type CachedSwappedEstimate = { amount: bigint; source: 'active' | 'fallback' | 'snapshot' };
@@ -101,16 +102,19 @@ export function ActivePositionCard({
   const endSlot = toSlotNumber(position.endSlot);
   const durationSlots = Math.max(1, endSlot - startSlot);
   const durationSlotsBigInt = BigInt(durationSlots);
-  const flowAtomsPerSlot = amountAtoms / durationSlotsBigInt;
+  const scaledFlowAtomsPerSlot = (amountAtoms * FLOW_PRECISION_FACTOR) / durationSlotsBigInt;
+  const flowAtomsPerSlot = scaledFlowAtomsPerSlot / FLOW_PRECISION_FACTOR;
 
   const currentSlot = streamingState ? clampToRange(streamingState.currentSlot, startSlot, endSlot) : startSlot;
   const hasPositionEnded = streamingState ? streamingState.currentSlot > endSlot : false;
   const elapsedSlots = clampToRange(currentSlot - startSlot, 0, durationSlots);
   const elapsedSlotsBigInt = BigInt(elapsedSlots);
-  const spentAtomsUncapped = (amountAtoms * elapsedSlotsBigInt) / durationSlotsBigInt;
-  const spentAtoms = spentAtomsUncapped > amountAtoms ? amountAtoms : spentAtomsUncapped;
-  const remainingAtoms = amountAtoms > spentAtoms ? amountAtoms - spentAtoms : 0n;
-  const consumedAtoms = spentAtoms;
+  const scaledDepositAtoms = amountAtoms * FLOW_PRECISION_FACTOR;
+  const scaledSpentAtomsUncapped = elapsedSlotsBigInt * scaledFlowAtomsPerSlot;
+  const scaledSpentAtoms = scaledSpentAtomsUncapped > scaledDepositAtoms ? scaledDepositAtoms : scaledSpentAtomsUncapped;
+  const scaledRemainingAtoms = scaledDepositAtoms > scaledSpentAtoms ? scaledDepositAtoms - scaledSpentAtoms : 0n;
+  const remainingAtoms = scaledRemainingAtoms / FLOW_PRECISION_FACTOR;
+  const consumedAtoms = amountAtoms > remainingAtoms ? amountAtoms - remainingAtoms : 0n;
   const remainingPercent = amountAtoms > 0n ? Number((remainingAtoms * 10000n) / amountAtoms) / 100 : 0;
   const progressPercent = Math.max(0, 100 - remainingPercent);
   const { snapshot: endSlotBookkeepingSnapshot } = useEndSlotBookkeepingSnapshot({
@@ -149,7 +153,7 @@ export function ActivePositionCard({
 
     const liveAccumulatedPrice = liveBookkeepingDelta + staleAccumulator;
     const liveSwappedEstimate =
-      (amountAtoms * liveAccumulatedPrice) / (durationSlotsBigInt * BOOKKEEPING_PRECISION_FACTOR);
+      (scaledFlowAtomsPerSlot * liveAccumulatedPrice) / (FLOW_PRECISION_FACTOR * BOOKKEEPING_PRECISION_FACTOR);
 
     if (!hasPositionEnded) {
       swappedEstimateAtoms = liveSwappedEstimate;
@@ -164,7 +168,7 @@ export function ActivePositionCard({
       const snapshotSwappedEstimate =
         snapshotDelta === null
           ? null
-          : (amountAtoms * snapshotDelta) / (durationSlotsBigInt * BOOKKEEPING_PRECISION_FACTOR);
+          : (scaledFlowAtomsPerSlot * snapshotDelta) / (FLOW_PRECISION_FACTOR * BOOKKEEPING_PRECISION_FACTOR);
 
       const frozenAtEnd = lastActiveSwappedEstimateRef.current ?? cachedEstimate?.amount ?? null;
       if (snapshotSwappedEstimate === null) {
