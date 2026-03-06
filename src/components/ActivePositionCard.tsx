@@ -24,7 +24,7 @@ const BOOKKEEPING_PRECISION_FACTOR = 1_000_000_000_000_000n;
 const FLOW_PRECISION_FACTOR = 1_000_000_000n;
 const TABULAR_NUMS: TextStyle = { fontVariant: ['tabular-nums'] };
 const OVERLINE: TextStyle = { textTransform: 'uppercase', letterSpacing: 0.8 };
-type CachedSwappedEstimate = { amount: bigint; source: 'active' | 'fallback' | 'snapshot' };
+type CachedSwappedEstimate = { amount: bigint; consumedAtoms: bigint; source: 'active' | 'fallback' | 'snapshot' };
 const lastSwappedEstimateByPosition = new Map<string, CachedSwappedEstimate>();
 
 function formatAtomsToDisplay(amountAtoms: bigint, decimals: number): string {
@@ -88,6 +88,7 @@ export function ActivePositionCard({
 }: ActivePositionCardProps) {
   const [expanded, setExpanded] = useState(false);
   const lastActiveSwappedEstimateRef = useRef<bigint | null>(null);
+  const lastActiveConsumedAtomsRef = useRef<bigint | null>(null);
   const isBuy = position.isBuy;
   const depositedToken = isBuy ? quoteTicker : baseTicker;
   const depositedDecimals = isBuy ? quoteDecimals : baseDecimals;
@@ -127,6 +128,7 @@ export function ActivePositionCard({
   });
 
   let swappedEstimateAtoms: bigint | null = null;
+  let consumedAtomsForAverage = consumedAtoms;
   if (streamingState) {
     const bookkeepingSnapshot = BigInt(position.bookkeepingSnapshot.toString());
     const liveBookkeeping = isBuy ? streamingState.bookkeepingBasePerQuote : streamingState.bookkeepingQuotePerBase;
@@ -157,8 +159,10 @@ export function ActivePositionCard({
 
     if (!hasPositionEnded) {
       swappedEstimateAtoms = liveSwappedEstimate;
+      consumedAtomsForAverage = consumedAtoms;
       lastActiveSwappedEstimateRef.current = liveSwappedEstimate;
-      lastSwappedEstimateByPosition.set(positionKey, { amount: liveSwappedEstimate, source: 'active' });
+      lastActiveConsumedAtomsRef.current = consumedAtoms;
+      lastSwappedEstimateByPosition.set(positionKey, { amount: liveSwappedEstimate, consumedAtoms, source: 'active' });
     } else {
       const cachedEstimate = lastSwappedEstimateByPosition.get(positionKey) ?? null;
       const snapshotDelta =
@@ -171,35 +175,57 @@ export function ActivePositionCard({
           : (scaledFlowAtomsPerSlot * snapshotDelta) / (FLOW_PRECISION_FACTOR * BOOKKEEPING_PRECISION_FACTOR);
 
       const frozenAtEnd = lastActiveSwappedEstimateRef.current ?? cachedEstimate?.amount ?? null;
+      const frozenConsumedAtEnd = lastActiveConsumedAtomsRef.current ?? cachedEstimate?.consumedAtoms ?? null;
       if (snapshotSwappedEstimate === null) {
         if (frozenAtEnd !== null) {
           swappedEstimateAtoms = frozenAtEnd;
+          consumedAtomsForAverage = frozenConsumedAtEnd ?? consumedAtoms;
         } else {
           // Snapshot can lag by ~ARRAY_LENGTH*endSlotInterval slots; keep a stable fallback meanwhile.
           swappedEstimateAtoms = liveSwappedEstimate;
-          lastSwappedEstimateByPosition.set(positionKey, { amount: liveSwappedEstimate, source: 'fallback' });
+          consumedAtomsForAverage = consumedAtoms;
+          lastSwappedEstimateByPosition.set(positionKey, {
+            amount: liveSwappedEstimate,
+            consumedAtoms,
+            source: 'fallback',
+          });
         }
       } else {
         const shouldClampDrop =
           frozenAtEnd !== null &&
           (lastActiveSwappedEstimateRef.current !== null || cachedEstimate?.source === 'active');
-        swappedEstimateAtoms = shouldClampDrop
-          ? snapshotSwappedEstimate > frozenAtEnd
-            ? snapshotSwappedEstimate
-            : frozenAtEnd
-          : snapshotSwappedEstimate;
-        lastSwappedEstimateByPosition.set(positionKey, { amount: swappedEstimateAtoms, source: 'snapshot' });
+        const useFrozen = shouldClampDrop && snapshotSwappedEstimate <= frozenAtEnd;
+
+        if (useFrozen) {
+          swappedEstimateAtoms = frozenAtEnd;
+          consumedAtomsForAverage = frozenConsumedAtEnd ?? consumedAtoms;
+          lastSwappedEstimateByPosition.set(positionKey, {
+            amount: swappedEstimateAtoms,
+            consumedAtoms: consumedAtomsForAverage,
+            source: cachedEstimate?.source ?? 'active',
+          });
+        } else {
+          swappedEstimateAtoms = snapshotSwappedEstimate;
+          consumedAtomsForAverage = consumedAtoms;
+          lastSwappedEstimateByPosition.set(positionKey, {
+            amount: swappedEstimateAtoms,
+            consumedAtoms,
+            source: 'snapshot',
+          });
+        }
       }
     }
 
-    const cachedAmount = lastSwappedEstimateByPosition.get(positionKey)?.amount ?? null;
-    if (swappedEstimateAtoms !== null && cachedAmount !== null && swappedEstimateAtoms < cachedAmount) {
-      swappedEstimateAtoms = cachedAmount;
+    const cachedMetrics = lastSwappedEstimateByPosition.get(positionKey) ?? null;
+    if (swappedEstimateAtoms !== null && cachedMetrics !== null && swappedEstimateAtoms < cachedMetrics.amount) {
+      swappedEstimateAtoms = cachedMetrics.amount;
+      consumedAtomsForAverage = cachedMetrics.consumedAtoms;
     }
     if (swappedEstimateAtoms !== null) {
       const cachedSource = lastSwappedEstimateByPosition.get(positionKey)?.source;
       lastSwappedEstimateByPosition.set(positionKey, {
         amount: swappedEstimateAtoms,
+        consumedAtoms: consumedAtomsForAverage,
         source: cachedSource ?? (hasPositionEnded ? 'snapshot' : 'active'),
       });
     }
@@ -207,8 +233,8 @@ export function ActivePositionCard({
 
   const averagePrice = (() => {
     if (swappedEstimateAtoms === null) return null;
-    const quoteAtoms = isBuy ? consumedAtoms : swappedEstimateAtoms;
-    const baseAtoms = isBuy ? swappedEstimateAtoms : consumedAtoms;
+    const quoteAtoms = isBuy ? consumedAtomsForAverage : swappedEstimateAtoms;
+    const baseAtoms = isBuy ? swappedEstimateAtoms : consumedAtomsForAverage;
     return computeAveragePrice(quoteAtoms, quoteDecimals, baseAtoms, baseDecimals);
   })();
   const averagePriceLabel = isBuy ? 'Average Price' : 'Average Price';
