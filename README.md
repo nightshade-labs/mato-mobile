@@ -1,6 +1,12 @@
 # Mato
 
-Mato is a Solana mobile trading app, where users choose an amount and a duration and let orders stream into the market over time. It uses a continuous clearing auction: the market clears continuously as buy and sell flow changes. That is cool because it can reduce instantaneous price impact, make execution fairer, and weaken toxic flow such as sandwiching.
+Mato is a Solana mobile trading app, where users choose an amount and a duration and let orders stream into the market over time.
+
+## Continuous Clearing Auctions
+
+It uses a continuous clearing auction: the market clears continuously as buy and sell flow changes. That is cool because it can reduce instantaneous price impact, make execution fairer, and weaken toxic flow such as sandwiching.
+
+![Continuous Clearing Auction](assets/cca.png)
 
 ## Build And Install
 
@@ -9,8 +15,8 @@ Requirements: Node.js, Android Studio, an Android phone with USB debugging enabl
 Create a `.env` file with:
 
 ```env
-EXPO_PUBLIC_SUPABASE_URL=...
-EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
 Build the APK:
