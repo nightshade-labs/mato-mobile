@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 // StatusBar is configured in _layout.tsx
-import { ActivityIndicator, Image, Keyboard, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Keyboard,
+  Linking,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import type { TextStyle } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BN from 'bn.js';
@@ -57,9 +67,9 @@ const DURATION_OPTIONS = [
 ] as const;
 
 const CHART_TIMEFRAMES = [
+  { label: '1m', intervalMs: 1 * 60 * 1000 },
   { label: '5m', intervalMs: 5 * 60 * 1000 },
   { label: '1h', intervalMs: 60 * 60 * 1000 },
-  { label: '1D', intervalMs: 24 * 60 * 60 * 1000 },
 ] as const;
 
 const ENABLE_ADVANCED_CHART = process.env.EXPO_PUBLIC_ENABLE_ADVANCED_CHART !== 'false';
@@ -351,17 +361,8 @@ export default function App() {
     if (!amountAtoms || amountAtoms <= 0n) return null;
     return Number(amountAtoms) / 10 ** amountDecimals;
   }, [amountAtoms, amountDecimals]);
+  const hasAmountInput = amountUiValue !== null && amountUiValue > 0;
   const activePositionsNewestFirst = useMemo(() => [...positions].sort((a, b) => b.id.cmp(a.id)), [positions]);
-
-  const estimatedConversionText = useMemo(() => {
-    if (!amountUiValue || !displayPrice || displayPrice <= 0) return null;
-    if (side === 'buy') {
-      const estimatedBase = amountUiValue / displayPrice;
-      return `~${formatUiAmount(estimatedBase)} ${baseTicker}`;
-    }
-    const estimatedQuote = amountUiValue * displayPrice;
-    return `~${formatUiAmount(estimatedQuote)} ${quoteTicker}`;
-  }, [amountUiValue, displayPrice, side, baseTicker, quoteTicker]);
 
   const priceImpactPercent = useMemo(() => {
     if (!amountAtoms || amountAtoms <= 0n || !streamingState) return null;
@@ -379,6 +380,46 @@ export default function App() {
       100
     );
   }, [amountAtoms, durationSeconds, streamingState, side]);
+  const signedPriceImpactPercent = useMemo(() => {
+    if (priceImpactPercent === null) return null;
+    return side === 'buy' ? priceImpactPercent : -priceImpactPercent;
+  }, [priceImpactPercent, side]);
+  const executionPrice = useMemo(() => {
+    if (displayPrice === null || displayPrice <= 0) return null;
+    if (signedPriceImpactPercent === null) return displayPrice;
+
+    const nextPrice = displayPrice * (1 + signedPriceImpactPercent / 100);
+    if (!Number.isFinite(nextPrice) || nextPrice <= 0) return null;
+    return nextPrice;
+  }, [displayPrice, signedPriceImpactPercent]);
+  const estimatedConversionText = useMemo(() => {
+    const outputTicker = side === 'buy' ? baseTicker : quoteTicker;
+    if (!hasAmountInput || !executionPrice || executionPrice <= 0) return `0 ${outputTicker}`;
+    if (side === 'buy') {
+      const estimatedBase = amountUiValue / executionPrice;
+      return `~${formatUiAmount(estimatedBase)} ${baseTicker}`;
+    }
+    const estimatedQuote = amountUiValue * executionPrice;
+    return `~${formatUiAmount(estimatedQuote)} ${quoteTicker}`;
+  }, [amountUiValue, executionPrice, side, baseTicker, quoteTicker, hasAmountInput]);
+  const priceImpactDisplay =
+    priceImpactPercent === null ? '0%' : `${priceImpactPercent < 0.001 ? '<0.001' : priceImpactPercent.toFixed(3)}%`;
+  const priceImpactTextColor =
+    !hasAmountInput || priceImpactPercent === null
+      ? uiColors.textMuted
+      : priceImpactPercent < 0.1
+        ? uiColors.buyText
+        : priceImpactPercent < 1
+          ? uiColors.warningText
+          : uiColors.dangerText;
+  const executionPriceArrow =
+    signedPriceImpactPercent === null || signedPriceImpactPercent === 0
+      ? ''
+      : signedPriceImpactPercent > 0
+        ? '↑ '
+        : '↓ ';
+  const executionPriceDisplay =
+    executionPrice === null ? '—' : `${executionPriceArrow}$${formatUiAmount(executionPrice)}`;
 
   const activeOhlcv = useMemo(() => {
     if (crosshairData) {
@@ -948,34 +989,30 @@ export default function App() {
               className="rounded-xl border px-4 py-3.5 text-white text-[22px] font-semibold leading-9"
               style={[{ borderColor: uiColors.border, backgroundColor: uiColors.panel }, TABULAR_NUMS]}
             />
-            {estimatedConversionText && (
-              <Text className="text-sm leading-5 mt-3" style={{ color: uiColors.textSubtle }}>
-                Estimated receive:{' '}
-                <Text className="font-semibold" style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}>
-                  {estimatedConversionText}
-                </Text>
+            <Text className="text-sm leading-5 mt-3" style={{ color: uiColors.textSubtle }}>
+              Estimated receive:{' '}
+              <Text
+                className="font-semibold"
+                style={[{ color: hasAmountInput ? uiColors.textSecondary : uiColors.textMuted }, TABULAR_NUMS]}
+              >
+                {estimatedConversionText}
               </Text>
-            )}
-            {priceImpactPercent !== null && (
-              <View className="flex-row items-center mt-1.5">
-                <Text className="text-sm leading-5" style={{ color: uiColors.textSubtle }}>
-                  Price impact:{' '}
-                </Text>
-                <Text
-                  className="text-sm font-semibold leading-5"
-                  style={{
-                    color:
-                      priceImpactPercent < 0.1
-                        ? uiColors.buyText
-                        : priceImpactPercent < 1
-                          ? uiColors.warningText
-                          : uiColors.dangerText,
-                  }}
-                >
-                  {priceImpactPercent < 0.001 ? '<0.001' : priceImpactPercent.toFixed(3)}%
-                </Text>
-              </View>
-            )}
+            </Text>
+            <Text className="text-sm leading-5 mt-1.5" style={{ color: uiColors.textSubtle }}>
+              Price impact:{' '}
+              <Text className="font-semibold" style={[{ color: priceImpactTextColor }, TABULAR_NUMS]}>
+                {priceImpactDisplay}
+              </Text>{' '}
+              <Text
+                className="font-semibold"
+                style={[
+                  { color: executionPriceDisplay === '—' ? uiColors.textMuted : uiColors.textSecondary },
+                  TABULAR_NUMS,
+                ]}
+              >
+                ({executionPriceDisplay})
+              </Text>
+            </Text>
             <View className="mt-4">
               <View className="flex-row items-center justify-between mb-2.5">
                 <Text
