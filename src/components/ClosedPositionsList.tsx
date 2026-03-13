@@ -44,7 +44,7 @@ function subtractFloorZero(minuend: bigint, subtrahend: bigint): bigint {
   return minuend - subtrahend;
 }
 
-function computeEffectivePrice(
+function computeUnitPrice(
   quoteAtoms: bigint,
   quoteDecimals: number,
   baseAtoms: bigint,
@@ -214,14 +214,23 @@ function ClosedPositionRow({
   const feeAtoms = event.fee_amount;
   const receivedAtoms = subtractFloorZero(swappedAtoms, feeAtoms);
 
-  const quoteNumeratorAtoms = isBuy ? consumedAtoms : receivedAtoms;
-  const baseDenominatorAtoms = isBuy ? receivedAtoms : consumedAtoms;
-  const effectivePrice = computeEffectivePrice(quoteNumeratorAtoms, quoteDecimals, baseDenominatorAtoms, baseDecimals);
-  const effectivePriceLabel = isBuy ? 'Effective price paid' : 'Effective price received';
+  const grossQuoteAtoms = isBuy ? consumedAtoms : swappedAtoms;
+  const grossBaseAtoms = isBuy ? swappedAtoms : consumedAtoms;
+  const averageFillPrice = computeUnitPrice(grossQuoteAtoms, quoteDecimals, grossBaseAtoms, baseDecimals);
+
+  const netQuoteAtoms = isBuy ? consumedAtoms : receivedAtoms;
+  const netBaseAtoms = isBuy ? receivedAtoms : consumedAtoms;
+  const netEffectivePrice = computeUnitPrice(netQuoteAtoms, quoteDecimals, netBaseAtoms, baseDecimals);
+  const averageFillPriceLabel = 'Average fill price';
+  const netEffectivePriceLabel = isBuy ? 'Net price paid after fee' : 'Net price received after fee';
   const consumedLabel = isBuy ? 'Actually Spent' : 'Actually Sold';
   const hasChart = chartPoints !== null && chartPoints.length >= 2;
   const showChartPlaceholder = !hasChart && chartLoading && event.start_slot !== null && event.end_slot !== null;
   const showChartSection = hasChart || showChartPlaceholder;
+  const showNetEffectivePrice =
+    netEffectivePrice !== null &&
+    averageFillPrice !== null &&
+    Math.abs(netEffectivePrice - averageFillPrice) > Math.max(averageFillPrice, 1) * 1e-9;
 
   const handleOpenTx = () => {
     if (event.signature) {
@@ -269,7 +278,7 @@ function ClosedPositionRow({
             (hasChart ? (
               <MiniPriceChart
                 points={chartPoints ?? []}
-                averagePrice={effectivePrice}
+                averagePrice={averageFillPrice}
                 lineColor={uiColors.primary}
                 averageLineColor={isBuy ? uiColors.buyText : uiColors.dangerText}
               />
@@ -303,9 +312,9 @@ function ClosedPositionRow({
               >
                 {formatAtomsToDisplay(receivedAtoms, swappedDecimals)} {swappedToken}
               </Text>
-              {effectivePrice !== null && (
+              {averageFillPrice !== null && (
                 <Text className="text-[11px] leading-4" style={[{ color: uiColors.textSubtle }, TABULAR_NUMS]}>
-                  @ {formatPrice(effectivePrice)}
+                  @ {formatPrice(averageFillPrice)}
                 </Text>
               )}
             </View>
@@ -375,15 +384,28 @@ function ClosedPositionRow({
               </View>
               <View className="mt-1.5 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
                 <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
-                  {effectivePriceLabel}
+                  {averageFillPriceLabel}
                 </Text>
                 <Text
                   className="text-[14px] font-semibold leading-5"
                   style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
                 >
-                  {effectivePrice === null ? '—' : `${formatPrice(effectivePrice)} ${quoteTicker}/${baseTicker}`}
+                  {averageFillPrice === null ? '—' : `${formatPrice(averageFillPrice)} ${quoteTicker}/${baseTicker}`}
                 </Text>
               </View>
+              {showNetEffectivePrice && netEffectivePrice !== null && (
+                <View className="mt-1.5 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
+                  <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                    {netEffectivePriceLabel}
+                  </Text>
+                  <Text
+                    className="text-[14px] font-semibold leading-5"
+                    style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                  >
+                    {`${formatPrice(netEffectivePrice)} ${quoteTicker}/${baseTicker}`}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
         </View>
