@@ -92,6 +92,8 @@ export function MiniPriceChart({
 }: MiniPriceChartProps) {
   const [width, setWidth] = useState(0);
   const geometry = useMemo(() => buildGeometry(points, averagePrice, width, height), [averagePrice, height, points, width]);
+  const averageLineY = geometry?.averageLineY ?? null;
+  const segments = geometry?.segments ?? [];
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const nextWidth = Math.round(event.nativeEvent.layout.width);
@@ -109,11 +111,11 @@ export function MiniPriceChart({
         backgroundColor: uiColors.panelSoft,
       }}
     >
-      {geometry?.averageLineY !== null && (
+      {averageLineY !== null && (
         <View
           className="absolute left-0 right-0"
           style={{
-            top: geometry.averageLineY,
+            top: averageLineY,
             borderTopWidth: 1,
             borderTopColor: averageLineColor,
             borderStyle: 'dashed',
@@ -122,7 +124,7 @@ export function MiniPriceChart({
         />
       )}
 
-      {geometry?.segments.map((segment) => (
+      {segments.map((segment) => (
         <View
           key={segment.key}
           className="absolute rounded-full"
