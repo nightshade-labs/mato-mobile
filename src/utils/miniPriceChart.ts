@@ -11,7 +11,7 @@ export interface MiniPriceChartPoint {
 }
 
 const MIN_SAMPLES = 16;
-const MAX_SAMPLES = 48;
+const MAX_SAMPLES = 200;
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;
@@ -19,11 +19,7 @@ function clamp(value: number, min: number, max: number): number {
   return value;
 }
 
-function toFinitePositivePrice(
-  event: MarketUpdateEvent,
-  baseScale: number,
-  quoteScale: number,
-): number | null {
+function toFinitePositivePrice(event: MarketUpdateEvent, baseScale: number, quoteScale: number): number | null {
   if (event.base_flow === 0n) return null;
 
   const base = Number(event.base_flow) / baseScale;
