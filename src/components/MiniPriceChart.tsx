@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Text, View } from 'react-native';
 import type { LayoutChangeEvent } from 'react-native';
 import { uiColors } from '../theme/colors';
 import type { MiniPriceChartPoint } from '../utils/miniPriceChart';
@@ -10,6 +10,8 @@ interface MiniPriceChartProps {
   height?: number;
   lineColor?: string;
   averageLineColor?: string;
+  showYAxisLabels?: boolean;
+  formatValue?: (value: number) => string;
 }
 
 interface ChartSegment {
@@ -23,18 +25,25 @@ interface ChartSegment {
 interface ChartGeometry {
   averageLineY: number | null;
   segments: ChartSegment[];
+  minValue: number;
+  maxValue: number;
+  midValue: number;
+  plotWidth: number;
 }
 
 const VERTICAL_PADDING = 6;
 const LINE_THICKNESS = 2;
+const AXIS_GUTTER_WIDTH = 54;
 
 function buildGeometry(
   points: MiniPriceChartPoint[],
   averagePrice: number | null,
   width: number,
   height: number,
+  showYAxisLabels: boolean,
 ): ChartGeometry | null {
   if (width <= 0 || points.length < 2) return null;
+  const plotWidth = Math.max(1, width - (showYAxisLabels ? AXIS_GUTTER_WIDTH : 0));
 
   const values = points.map((point) => point.price);
   if (averagePrice !== null) {
@@ -58,7 +67,7 @@ function buildGeometry(
   const toY = (value: number) => VERTICAL_PADDING + ((maxValue - value) / range) * drawableHeight;
 
   const chartPoints = points.map((point, index) => ({
-    x: points.length === 1 ? width / 2 : (index / (points.length - 1)) * width,
+    x: points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth,
     y: toY(point.price),
   }));
 
@@ -79,6 +88,10 @@ function buildGeometry(
 
   return {
     averageLineY: averagePrice === null ? null : toY(averagePrice),
+    minValue,
+    maxValue,
+    midValue: minValue + (maxValue - minValue) / 2,
+    plotWidth,
     segments,
   };
 }
@@ -89,11 +102,24 @@ export function MiniPriceChart({
   height = 56,
   lineColor = uiColors.primary,
   averageLineColor = uiColors.warningText,
+  showYAxisLabels = false,
+  formatValue,
 }: MiniPriceChartProps) {
   const [width, setWidth] = useState(0);
-  const geometry = useMemo(() => buildGeometry(points, averagePrice, width, height), [averagePrice, height, points, width]);
+  const geometry = useMemo(
+    () => buildGeometry(points, averagePrice, width, height, showYAxisLabels),
+    [averagePrice, height, points, showYAxisLabels, width],
+  );
   const averageLineY = geometry?.averageLineY ?? null;
   const segments = geometry?.segments ?? [];
+  const yAxisLabels =
+    geometry && formatValue
+      ? [
+          { key: 'max', value: formatValue(geometry.maxValue), top: VERTICAL_PADDING - 2 },
+          { key: 'mid', value: formatValue(geometry.midValue), top: height / 2 - 7 },
+          { key: 'min', value: formatValue(geometry.minValue), top: height - VERTICAL_PADDING - 12 },
+        ]
+      : [];
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const nextWidth = Math.round(event.nativeEvent.layout.width);
@@ -113,8 +139,9 @@ export function MiniPriceChart({
     >
       {averageLineY !== null && (
         <View
-          className="absolute left-0 right-0"
+          className="absolute left-0"
           style={{
+            width: geometry?.plotWidth ?? width,
             top: averageLineY,
             borderTopWidth: 1,
             borderTopColor: averageLineColor,
@@ -138,6 +165,36 @@ export function MiniPriceChart({
           }}
         />
       ))}
+
+      {showYAxisLabels && geometry && formatValue && (
+        <>
+          <View
+            className="absolute"
+            style={{
+              left: geometry.plotWidth,
+              top: 0,
+              bottom: 0,
+              width: 1,
+              backgroundColor: uiColors.divider,
+            }}
+          />
+          {yAxisLabels.map((label) => (
+            <Text
+              key={label.key}
+              className="absolute text-[9px] leading-3"
+              numberOfLines={1}
+              style={{
+                left: geometry.plotWidth + 4,
+                right: 4,
+                top: label.top,
+                color: uiColors.textSubtle,
+              }}
+            >
+              {label.value}
+            </Text>
+          ))}
+        </>
+      )}
     </View>
   );
 }

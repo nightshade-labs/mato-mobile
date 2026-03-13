@@ -316,6 +316,8 @@ function ClosedPositionRow({
                 averagePrice={averageFillPrice}
                 lineColor={uiColors.primary}
                 averageLineColor={averageLineColor}
+                showYAxisLabels
+                formatValue={formatPrice}
               />
             ) : (
               <View
