@@ -186,6 +186,32 @@ interface ClosedPositionRowProps {
   quoteDecimals: number;
 }
 
+interface ChartLegendItemProps {
+  color: string;
+  dashed?: boolean;
+  label: string;
+}
+
+function ChartLegendItem({ color, dashed = false, label }: ChartLegendItemProps) {
+  return (
+    <View className="flex-row items-center">
+      <View
+        className="mr-1.5"
+        style={{
+          width: 14,
+          borderTopWidth: dashed ? 1 : 2,
+          borderTopColor: color,
+          borderStyle: dashed ? 'dashed' : 'solid',
+          opacity: 0.95,
+        }}
+      />
+      <Text className="text-[10px] leading-4" style={{ color: uiColors.textSubtle }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 function ClosedPositionRow({
   event,
   chartPoints,
@@ -231,6 +257,7 @@ function ClosedPositionRow({
     netEffectivePrice !== null &&
     averageFillPrice !== null &&
     Math.abs(netEffectivePrice - averageFillPrice) > Math.max(averageFillPrice, 1) * 1e-9;
+  const averageLineColor = isBuy ? uiColors.buyText : uiColors.dangerText;
 
   const handleOpenTx = () => {
     if (event.signature) {
@@ -274,13 +301,21 @@ function ClosedPositionRow({
         </View>
 
         <View className="mt-3 pt-3 border-t" style={{ borderTopColor: uiColors.divider }}>
+          {showChartSection && hasChart && (
+            <View className="flex-row items-center justify-end mb-2">
+              <ChartLegendItem color={uiColors.primary} label="Price" />
+              <View className="w-3" />
+              <ChartLegendItem color={averageLineColor} dashed label="Avg fill" />
+            </View>
+          )}
+
           {showChartSection &&
             (hasChart ? (
               <MiniPriceChart
                 points={chartPoints ?? []}
                 averagePrice={averageFillPrice}
                 lineColor={uiColors.primary}
-                averageLineColor={isBuy ? uiColors.buyText : uiColors.dangerText}
+                averageLineColor={averageLineColor}
               />
             ) : (
               <View
