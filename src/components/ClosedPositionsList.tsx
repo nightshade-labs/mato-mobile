@@ -1,11 +1,17 @@
-import { useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native';
+import { memo, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, InteractionManager, Linking, Pressable, Text, View } from 'react-native';
 import type { TextStyle } from 'react-native';
-import { useMarketUpdateRange } from '../hooks/useMarketUpdateRange';
+import { useQueryClient } from '@tanstack/react-query';
+import { MARKET_UPDATE_RANGE_STALE_TIME, fetchMarketUpdateRange } from '../hooks/useMarketUpdateRange';
 import { useClosePositionEvents } from '../integrations/supabase/useClosePositionEvents';
-import type { ClosePositionEvent } from '../integrations/supabase/types';
+import type { ClosePositionEvent, MarketUpdateEvent } from '../integrations/supabase/types';
+import { queryKeys } from '../query/keys';
 import { uiColors } from '../theme/colors';
-import { buildClosedPositionMiniChart, type MiniPriceChartPoint, normalizeMarketPricePoints } from '../utils/miniPriceChart';
+import {
+  buildClosedPositionMiniChart,
+  type MiniPriceChartPoint,
+  normalizeMarketPricePoints,
+} from '../utils/miniPriceChart';
 import { MiniPriceChart } from './MiniPriceChart';
 
 interface ClosedPositionsListProps {
@@ -21,6 +27,18 @@ interface ClosedPositionsListProps {
 
 const TABULAR_NUMS: TextStyle = { fontVariant: ['tabular-nums'] };
 const OVERLINE: TextStyle = { textTransform: 'uppercase', letterSpacing: 0.8 };
+
+interface ClosedPositionChartState {
+  status: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
+  points: MiniPriceChartPoint[] | null;
+  error: string | null;
+}
+
+const IDLE_CHART_STATE: ClosedPositionChartState = {
+  status: 'idle',
+  points: null,
+  error: null,
+};
 
 function formatAtomsToDisplay(amountAtoms: bigint, decimals: number): string {
   if (amountAtoms <= 0n) return '0';
@@ -69,6 +87,48 @@ function shortenSignature(sig: string): string {
   return `${sig.slice(0, 6)}...${sig.slice(-4)}`;
 }
 
+function hasValidChartRange(event: ClosePositionEvent): boolean {
+  return event.start_slot !== null && event.end_slot !== null && event.start_slot <= event.end_slot;
+}
+
+function buildChartStateFromHistory(
+  marketHistory: MarketUpdateEvent[],
+  event: ClosePositionEvent,
+  baseDecimals: number,
+  quoteDecimals: number,
+): ClosedPositionChartState {
+  const normalizedHistory = normalizeMarketPricePoints(marketHistory, baseDecimals, quoteDecimals);
+  const points = buildClosedPositionMiniChart(normalizedHistory, event.start_slot, event.end_slot);
+
+  if (points !== null && points.length >= 2) {
+    return {
+      status: 'ready',
+      points,
+      error: null,
+    };
+  }
+
+  return {
+    status: 'unavailable',
+    points: null,
+    error: null,
+  };
+}
+
+function findNextPendingChartIndex(
+  events: ClosePositionEvent[],
+  chartStatesByEventId: ReadonlyMap<number, ClosedPositionChartState>,
+): number | null {
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index];
+    if (!hasValidChartRange(event)) continue;
+    if (chartStatesByEventId.has(event.id)) continue;
+    return index;
+  }
+
+  return null;
+}
+
 export function ClosedPositionsList({
   positionAuthority,
   marketId,
@@ -79,45 +139,106 @@ export function ClosedPositionsList({
   embedded = false,
   limit = 50,
 }: ClosedPositionsListProps) {
+  const queryClient = useQueryClient();
   const { events, loading, error } = useClosePositionEvents({
     positionAuthority,
     marketId,
     limit,
   });
-  const slotRange = useMemo(() => {
-    let minSlot: number | null = null;
-    let maxSlot: number | null = null;
+  const [chartStatesByEventId, setChartStatesByEventId] = useState<Map<number, ClosedPositionChartState>>(new Map());
+  const [activeChartEventId, setActiveChartEventId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const cachedChartStates = new Map<number, ClosedPositionChartState>();
 
     for (const event of events) {
-      if (event.start_slot === null || event.end_slot === null || event.start_slot > event.end_slot) continue;
-      minSlot = minSlot === null ? event.start_slot : Math.min(minSlot, event.start_slot);
-      maxSlot = maxSlot === null ? event.end_slot : Math.max(maxSlot, event.end_slot);
+      if (!hasValidChartRange(event)) continue;
+
+      const cachedHistory = queryClient.getQueryData<MarketUpdateEvent[]>(
+        queryKeys.marketUpdates.range(marketId, event.start_slot, event.end_slot),
+      );
+      if (!cachedHistory) continue;
+
+      cachedChartStates.set(event.id, buildChartStateFromHistory(cachedHistory, event, baseDecimals, quoteDecimals));
     }
 
-    return { minSlot, maxSlot };
-  }, [events]);
-  const {
-    events: marketHistory,
-    loading: historyLoading,
-    error: historyError,
-  } = useMarketUpdateRange({
-    marketId,
-    startSlot: slotRange.minSlot,
-    endSlot: slotRange.maxSlot,
-  });
-  const normalizedHistory = useMemo(
-    () => normalizeMarketPricePoints(marketHistory, baseDecimals, quoteDecimals),
-    [baseDecimals, marketHistory, quoteDecimals],
-  );
-  const chartPointsByEventId = useMemo(() => {
-    const chartById = new Map<number, MiniPriceChartPoint[] | null>();
+    setChartStatesByEventId(cachedChartStates);
+    setActiveChartEventId(null);
+  }, [baseDecimals, events, marketId, queryClient, quoteDecimals]);
 
-    for (const event of events) {
-      chartById.set(event.id, buildClosedPositionMiniChart(normalizedHistory, event.start_slot, event.end_slot));
+  const nextPendingChartIndex = useMemo(() => {
+    if (activeChartEventId !== null) return null;
+    return findNextPendingChartIndex(events, chartStatesByEventId);
+  }, [activeChartEventId, chartStatesByEventId, events]);
+
+  useEffect(() => {
+    if (nextPendingChartIndex === null) return;
+
+    const event = events[nextPendingChartIndex];
+    if (!event || !hasValidChartRange(event) || event.start_slot === null || event.end_slot === null) {
+      return;
+    }
+    const startSlot = event.start_slot;
+    const endSlot = event.end_slot;
+
+    let cancelled = false;
+    setActiveChartEventId(event.id);
+    setChartStatesByEventId((current) => {
+      const next = new Map(current);
+      next.set(event.id, { status: 'loading', points: null, error: null });
+      return next;
+    });
+
+    const interaction = InteractionManager.runAfterInteractions(() => {
+      queryClient
+        .fetchQuery({
+          queryKey: queryKeys.marketUpdates.range(marketId, startSlot, endSlot),
+          staleTime: MARKET_UPDATE_RANGE_STALE_TIME,
+          queryFn: () =>
+            fetchMarketUpdateRange({
+              marketId,
+              startSlot,
+              endSlot,
+            }),
+        })
+        .then((marketHistory) => {
+          if (cancelled) return;
+
+          setChartStatesByEventId((current) => {
+            const next = new Map(current);
+            next.set(event.id, buildChartStateFromHistory(marketHistory, event, baseDecimals, quoteDecimals));
+            return next;
+          });
+        })
+        .catch((fetchError) => {
+          if (cancelled) return;
+
+          const message = fetchError instanceof Error ? fetchError.message : 'Unknown error';
+          setChartStatesByEventId((current) => {
+            const next = new Map(current);
+            next.set(event.id, { status: 'error', points: null, error: message });
+            return next;
+          });
+        })
+        .finally(() => {
+          if (cancelled) return;
+          setActiveChartEventId((current) => (current === event.id ? null : current));
+        });
+    });
+
+    return () => {
+      cancelled = true;
+      interaction.cancel();
+    };
+  }, [baseDecimals, events, marketId, nextPendingChartIndex, queryClient, quoteDecimals]);
+
+  const historyError = useMemo(() => {
+    for (const chartState of chartStatesByEventId.values()) {
+      if (chartState.error) return chartState.error;
     }
 
-    return chartById;
-  }, [events, normalizedHistory]);
+    return null;
+  }, [chartStatesByEventId]);
 
   const content = (
     <>
@@ -137,8 +258,7 @@ export function ClosedPositionsList({
             <ClosedPositionRow
               key={event.id}
               event={event}
-              chartPoints={chartPointsByEventId.get(event.id) ?? null}
-              chartLoading={historyLoading}
+              chartState={chartStatesByEventId.get(event.id) ?? IDLE_CHART_STATE}
               baseTicker={baseTicker}
               quoteTicker={quoteTicker}
               baseDecimals={baseDecimals}
@@ -178,8 +298,7 @@ export function ClosedPositionsList({
 
 interface ClosedPositionRowProps {
   event: ClosePositionEvent;
-  chartPoints: MiniPriceChartPoint[] | null;
-  chartLoading: boolean;
+  chartState: ClosedPositionChartState;
   baseTicker: string;
   quoteTicker: string;
   baseDecimals: number;
@@ -212,10 +331,9 @@ function ChartLegendItem({ color, dashed = false, label }: ChartLegendItemProps)
   );
 }
 
-function ClosedPositionRow({
+const ClosedPositionRow = memo(function ClosedPositionRow({
   event,
-  chartPoints,
-  chartLoading,
+  chartState,
   baseTicker,
   quoteTicker,
   baseDecimals,
@@ -250,8 +368,9 @@ function ClosedPositionRow({
   const averageFillPriceLabel = 'Average fill price';
   const netEffectivePriceLabel = isBuy ? 'Net price paid after fee' : 'Net price received after fee';
   const consumedLabel = isBuy ? 'Actually Spent' : 'Actually Sold';
-  const hasChart = chartPoints !== null && chartPoints.length >= 2;
-  const showChartPlaceholder = !hasChart && chartLoading && event.start_slot !== null && event.end_slot !== null;
+  const chartPoints = chartState.points;
+  const hasChart = chartState.status === 'ready' && chartPoints !== null && chartPoints.length >= 2;
+  const showChartPlaceholder = chartState.status === 'loading';
   const showChartSection = hasChart || showChartPlaceholder;
   const showNetEffectivePrice =
     netEffectivePrice !== null &&
@@ -312,7 +431,7 @@ function ClosedPositionRow({
           {showChartSection &&
             (hasChart ? (
               <MiniPriceChart
-                points={chartPoints ?? []}
+                points={chartPoints}
                 averagePrice={averageFillPrice}
                 lineColor={uiColors.primary}
                 averageLineColor={averageLineColor}
@@ -420,7 +539,10 @@ function ClosedPositionRow({
                 </View>
               </View>
               <View className="mt-1.5 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
-                <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                <Text
+                  className="text-[10px] font-semibold leading-4"
+                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                >
                   {averageFillPriceLabel}
                 </Text>
                 <Text
@@ -432,7 +554,10 @@ function ClosedPositionRow({
               </View>
               {showNetEffectivePrice && netEffectivePrice !== null && (
                 <View className="mt-1.5 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
-                  <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                  <Text
+                    className="text-[10px] font-semibold leading-4"
+                    style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                  >
                     {netEffectivePriceLabel}
                   </Text>
                   <Text
@@ -449,4 +574,6 @@ function ClosedPositionRow({
       </View>
     </Pressable>
   );
-}
+});
+
+ClosedPositionRow.displayName = 'ClosedPositionRow';
