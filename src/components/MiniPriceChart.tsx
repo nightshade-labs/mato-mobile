@@ -34,6 +34,8 @@ interface ChartGeometry {
 const VERTICAL_PADDING = 6;
 const LINE_THICKNESS = 2;
 const AXIS_GUTTER_WIDTH = 54;
+const MIN_VISIBLE_RELATIVE_RANGE = 0.000002;
+const MIN_VISIBLE_ABSOLUTE_RANGE = 0.000001;
 
 function buildGeometry(
   points: MiniPriceChartPoint[],
@@ -52,14 +54,16 @@ function buildGeometry(
 
   let minValue = Math.min(...values);
   let maxValue = Math.max(...values);
-  if (minValue === maxValue) {
-    const delta = minValue === 0 ? 1 : Math.abs(minValue) * 0.02;
-    minValue -= delta;
-    maxValue += delta;
-  } else {
+  if (minValue !== maxValue) {
     const padding = (maxValue - minValue) * 0.08;
     minValue -= padding;
     maxValue += padding;
+  }
+  const midValue = (minValue + maxValue) / 2;
+  const minimumRange = Math.max(Math.abs(midValue) * MIN_VISIBLE_RELATIVE_RANGE, MIN_VISIBLE_ABSOLUTE_RANGE);
+  if (maxValue - minValue < minimumRange) {
+    minValue = midValue - minimumRange / 2;
+    maxValue = midValue + minimumRange / 2;
   }
 
   const drawableHeight = Math.max(1, height - VERTICAL_PADDING * 2);
@@ -90,7 +94,7 @@ function buildGeometry(
     averageLineY: averagePrice === null ? null : toY(averagePrice),
     minValue,
     maxValue,
-    midValue: minValue + (maxValue - minValue) / 2,
+    midValue,
     plotWidth,
     segments,
   };
