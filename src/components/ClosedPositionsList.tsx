@@ -1,5 +1,5 @@
-import { memo, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, InteractionManager, Linking, Pressable, Text, View } from 'react-native';
+import { memo, startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native';
 import type { TextStyle } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { MARKET_UPDATE_RANGE_STALE_TIME, fetchMarketUpdateRange } from '../hooks/useMarketUpdateRange';
@@ -9,6 +9,7 @@ import { queryKeys } from '../query/keys';
 import { uiColors } from '../theme/colors';
 import {
   buildClosedPositionMiniChart,
+  type MarketPricePoint,
   type MiniPriceChartPoint,
   normalizeMarketPricePoints,
 } from '../utils/miniPriceChart';
@@ -23,6 +24,7 @@ interface ClosedPositionsListProps {
   quoteDecimals: number;
   embedded?: boolean;
   limit?: number;
+  marketHistorySeed?: MarketUpdateEvent[];
 }
 
 const TABULAR_NUMS: TextStyle = { fontVariant: ['tabular-nums'] };
@@ -39,6 +41,7 @@ const IDLE_CHART_STATE: ClosedPositionChartState = {
   points: null,
   error: null,
 };
+const MAX_CONCURRENT_CHART_LOADS = 4;
 
 function formatAtomsToDisplay(amountAtoms: bigint, decimals: number): string {
   if (amountAtoms <= 0n) return '0';
@@ -115,18 +118,58 @@ function buildChartStateFromHistory(
   };
 }
 
-function findNextPendingChartIndex(
+function hasNormalizedHistoryCoverage(
+  points: MarketPricePoint[],
+  startSlot: number | null,
+  endSlot: number | null,
+): boolean {
+  if (points.length === 0 || startSlot === null || endSlot === null || startSlot > endSlot) {
+    return false;
+  }
+
+  return points[0].slot <= startSlot && points[points.length - 1].slot >= endSlot;
+}
+
+function buildChartStateFromNormalizedHistory(
+  normalizedHistory: MarketPricePoint[],
+  event: ClosePositionEvent,
+): ClosedPositionChartState | null {
+  if (!hasNormalizedHistoryCoverage(normalizedHistory, event.start_slot, event.end_slot)) {
+    return null;
+  }
+
+  const points = buildClosedPositionMiniChart(normalizedHistory, event.start_slot, event.end_slot);
+  if (points !== null && points.length >= 2) {
+    return {
+      status: 'ready',
+      points,
+      error: null,
+    };
+  }
+
+  return {
+    status: 'unavailable',
+    points: null,
+    error: null,
+  };
+}
+
+function findNextPendingChartEvents(
   events: ClosePositionEvent[],
   chartStatesByEventId: ReadonlyMap<number, ClosedPositionChartState>,
-): number | null {
+  maxCount: number,
+): ClosePositionEvent[] {
+  const pendingEvents: ClosePositionEvent[] = [];
+
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
     if (!hasValidChartRange(event)) continue;
     if (chartStatesByEventId.has(event.id)) continue;
-    return index;
+    pendingEvents.push(event);
+    if (pendingEvents.length >= maxCount) break;
   }
 
-  return null;
+  return pendingEvents;
 }
 
 export function ClosedPositionsList({
@@ -138,6 +181,7 @@ export function ClosedPositionsList({
   quoteDecimals,
   embedded = false,
   limit = 50,
+  marketHistorySeed = [],
 }: ClosedPositionsListProps) {
   const queryClient = useQueryClient();
   const { events, loading, error } = useClosePositionEvents({
@@ -146,9 +190,21 @@ export function ClosedPositionsList({
     limit,
   });
   const [chartStatesByEventId, setChartStatesByEventId] = useState<Map<number, ClosedPositionChartState>>(new Map());
-  const [activeChartEventId, setActiveChartEventId] = useState<number | null>(null);
+  const chartLoadRunRef = useRef(0);
+  const isMountedRef = useRef(true);
+  const normalizedSeedHistory = useMemo(
+    () => normalizeMarketPricePoints(marketHistorySeed, baseDecimals, quoteDecimals),
+    [baseDecimals, marketHistorySeed, quoteDecimals],
+  );
 
   useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    chartLoadRunRef.current += 1;
     const cachedChartStates = new Map<number, ClosedPositionChartState>();
 
     for (const event of events) {
@@ -163,33 +219,77 @@ export function ClosedPositionsList({
     }
 
     setChartStatesByEventId(cachedChartStates);
-    setActiveChartEventId(null);
   }, [baseDecimals, events, marketId, queryClient, quoteDecimals]);
 
-  const nextPendingChartIndex = useMemo(() => {
-    if (activeChartEventId !== null) return null;
-    return findNextPendingChartIndex(events, chartStatesByEventId);
-  }, [activeChartEventId, chartStatesByEventId, events]);
-
   useEffect(() => {
-    if (nextPendingChartIndex === null) return;
-
-    const event = events[nextPendingChartIndex];
-    if (!event || !hasValidChartRange(event) || event.start_slot === null || event.end_slot === null) {
+    if (normalizedSeedHistory.length === 0) {
       return;
     }
-    const startSlot = event.start_slot;
-    const endSlot = event.end_slot;
 
-    let cancelled = false;
-    setActiveChartEventId(event.id);
+    startTransition(() => {
+      setChartStatesByEventId((current) => {
+        let next: Map<number, ClosedPositionChartState> | null = null;
+
+        for (const event of events) {
+          if (!hasValidChartRange(event)) continue;
+          if (current.get(event.id)?.status === 'ready') continue;
+
+          const nextState = buildChartStateFromNormalizedHistory(normalizedSeedHistory, event);
+          if (nextState === null) continue;
+
+          if (next === null) {
+            next = new Map(current);
+          }
+          next.set(event.id, nextState);
+        }
+
+        return next ?? current;
+      });
+    });
+  }, [events, normalizedSeedHistory]);
+
+  const activeChartLoadCount = useMemo(() => {
+    let count = 0;
+
+    for (const chartState of chartStatesByEventId.values()) {
+      if (chartState.status === 'loading') {
+        count += 1;
+      }
+    }
+
+    return count;
+  }, [chartStatesByEventId]);
+
+  const pendingChartEvents = useMemo(() => {
+    const remainingSlots = MAX_CONCURRENT_CHART_LOADS - activeChartLoadCount;
+    if (remainingSlots <= 0) return [];
+
+    return findNextPendingChartEvents(events, chartStatesByEventId, remainingSlots);
+  }, [activeChartLoadCount, chartStatesByEventId, events]);
+
+  useEffect(() => {
+    if (pendingChartEvents.length === 0) return;
+
+    const runVersion = chartLoadRunRef.current;
     setChartStatesByEventId((current) => {
       const next = new Map(current);
-      next.set(event.id, { status: 'loading', points: null, error: null });
+
+      for (const event of pendingChartEvents) {
+        if (!next.has(event.id)) {
+          next.set(event.id, { status: 'loading', points: null, error: null });
+        }
+      }
+
       return next;
     });
 
-    const interaction = InteractionManager.runAfterInteractions(() => {
+    for (const event of pendingChartEvents) {
+      if (event.start_slot === null || event.end_slot === null) {
+        continue;
+      }
+
+      const startSlot = event.start_slot;
+      const endSlot = event.end_slot;
       queryClient
         .fetchQuery({
           queryKey: queryKeys.marketUpdates.range(marketId, startSlot, endSlot),
@@ -202,35 +302,30 @@ export function ClosedPositionsList({
             }),
         })
         .then((marketHistory) => {
-          if (cancelled) return;
+          if (!isMountedRef.current || runVersion !== chartLoadRunRef.current) return;
 
-          setChartStatesByEventId((current) => {
-            const next = new Map(current);
-            next.set(event.id, buildChartStateFromHistory(marketHistory, event, baseDecimals, quoteDecimals));
-            return next;
+          startTransition(() => {
+            setChartStatesByEventId((current) => {
+              const next = new Map(current);
+              next.set(event.id, buildChartStateFromHistory(marketHistory, event, baseDecimals, quoteDecimals));
+              return next;
+            });
           });
         })
         .catch((fetchError) => {
-          if (cancelled) return;
+          if (!isMountedRef.current || runVersion !== chartLoadRunRef.current) return;
 
           const message = fetchError instanceof Error ? fetchError.message : 'Unknown error';
-          setChartStatesByEventId((current) => {
-            const next = new Map(current);
-            next.set(event.id, { status: 'error', points: null, error: message });
-            return next;
+          startTransition(() => {
+            setChartStatesByEventId((current) => {
+              const next = new Map(current);
+              next.set(event.id, { status: 'error', points: null, error: message });
+              return next;
+            });
           });
-        })
-        .finally(() => {
-          if (cancelled) return;
-          setActiveChartEventId((current) => (current === event.id ? null : current));
         });
-    });
-
-    return () => {
-      cancelled = true;
-      interaction.cancel();
-    };
-  }, [baseDecimals, events, marketId, nextPendingChartIndex, queryClient, quoteDecimals]);
+    }
+  }, [baseDecimals, events, marketId, pendingChartEvents, queryClient, quoteDecimals]);
 
   const historyError = useMemo(() => {
     for (const chartState of chartStatesByEventId.values()) {
@@ -370,8 +465,7 @@ const ClosedPositionRow = memo(function ClosedPositionRow({
   const consumedLabel = isBuy ? 'Actually Spent' : 'Actually Sold';
   const chartPoints = chartState.points;
   const hasChart = chartState.status === 'ready' && chartPoints !== null && chartPoints.length >= 2;
-  const showChartPlaceholder = chartState.status === 'loading';
-  const showChartSection = hasChart || showChartPlaceholder;
+  const showChartSection = hasChart;
   const showNetEffectivePrice =
     netEffectivePrice !== null &&
     averageFillPrice !== null &&
@@ -428,28 +522,16 @@ const ClosedPositionRow = memo(function ClosedPositionRow({
             </View>
           )}
 
-          {showChartSection &&
-            (hasChart ? (
-              <MiniPriceChart
-                points={chartPoints}
-                averagePrice={averageFillPrice}
-                lineColor={uiColors.primary}
-                averageLineColor={averageLineColor}
-                showYAxisLabels
-                formatValue={formatPrice}
-              />
-            ) : (
-              <View
-                className="w-full rounded-lg"
-                style={{
-                  height: 56,
-                  borderWidth: 1,
-                  borderColor: uiColors.border,
-                  backgroundColor: uiColors.panelSoft,
-                  opacity: 0.45,
-                }}
-              />
-            ))}
+          {hasChart && (
+            <MiniPriceChart
+              points={chartPoints}
+              averagePrice={averageFillPrice}
+              lineColor={uiColors.primary}
+              averageLineColor={averageLineColor}
+              showYAxisLabels
+              formatValue={formatPrice}
+            />
+          )}
 
           {!expanded && (
             <View className={`flex-row items-center justify-between ${showChartSection ? 'mt-3' : ''}`}>
