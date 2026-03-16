@@ -13,7 +13,8 @@
     "lint": "expo lint --fix",
     "lint:check": "expo lint",
     "start": "expo start",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "worktree:new": "bash ./scripts/new-worktree.sh"
   },
   "displayName": "Uniwind Mobile Kit Expo example",
   "description": "A template for building a Solana mobile app with Expo, React Native, Solana Kit, and Uniwind.",

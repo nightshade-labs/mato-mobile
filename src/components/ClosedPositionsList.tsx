@@ -1,8 +1,19 @@
-import { useState } from 'react';
+import { memo, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native';
 import type { TextStyle } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
+import { MARKET_UPDATE_RANGE_STALE_TIME, fetchMarketUpdateRange } from '../hooks/useMarketUpdateRange';
 import { useClosePositionEvents } from '../integrations/supabase/useClosePositionEvents';
+import type { ClosePositionEvent, MarketUpdateEvent } from '../integrations/supabase/types';
+import { queryKeys } from '../query/keys';
 import { uiColors } from '../theme/colors';
+import {
+  buildClosedPositionMiniChart,
+  type MarketPricePoint,
+  type MiniPriceChartPoint,
+  normalizeMarketPricePoints,
+} from '../utils/miniPriceChart';
+import { MiniPriceChart } from './MiniPriceChart';
 
 interface ClosedPositionsListProps {
   positionAuthority: string;
@@ -13,10 +24,24 @@ interface ClosedPositionsListProps {
   quoteDecimals: number;
   embedded?: boolean;
   limit?: number;
+  marketHistorySeed?: MarketUpdateEvent[];
 }
 
 const TABULAR_NUMS: TextStyle = { fontVariant: ['tabular-nums'] };
 const OVERLINE: TextStyle = { textTransform: 'uppercase', letterSpacing: 0.8 };
+
+interface ClosedPositionChartState {
+  status: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
+  points: MiniPriceChartPoint[] | null;
+  error: string | null;
+}
+
+const IDLE_CHART_STATE: ClosedPositionChartState = {
+  status: 'idle',
+  points: null,
+  error: null,
+};
+const MAX_CONCURRENT_CHART_LOADS = 4;
 
 function formatAtomsToDisplay(amountAtoms: bigint, decimals: number): string {
   if (amountAtoms <= 0n) return '0';
@@ -40,7 +65,7 @@ function subtractFloorZero(minuend: bigint, subtrahend: bigint): bigint {
   return minuend - subtrahend;
 }
 
-function computeEffectivePrice(
+function computeUnitPrice(
   quoteAtoms: bigint,
   quoteDecimals: number,
   baseAtoms: bigint,
@@ -65,6 +90,88 @@ function shortenSignature(sig: string): string {
   return `${sig.slice(0, 6)}...${sig.slice(-4)}`;
 }
 
+function hasValidChartRange(event: ClosePositionEvent): boolean {
+  return event.start_slot !== null && event.end_slot !== null && event.start_slot <= event.end_slot;
+}
+
+function buildChartStateFromHistory(
+  marketHistory: MarketUpdateEvent[],
+  event: ClosePositionEvent,
+  baseDecimals: number,
+  quoteDecimals: number,
+): ClosedPositionChartState {
+  const normalizedHistory = normalizeMarketPricePoints(marketHistory, baseDecimals, quoteDecimals);
+  const points = buildClosedPositionMiniChart(normalizedHistory, event.start_slot, event.end_slot);
+
+  if (points !== null && points.length >= 2) {
+    return {
+      status: 'ready',
+      points,
+      error: null,
+    };
+  }
+
+  return {
+    status: 'unavailable',
+    points: null,
+    error: null,
+  };
+}
+
+function hasNormalizedHistoryCoverage(
+  points: MarketPricePoint[],
+  startSlot: number | null,
+  endSlot: number | null,
+): boolean {
+  if (points.length === 0 || startSlot === null || endSlot === null || startSlot > endSlot) {
+    return false;
+  }
+
+  return points[0].slot <= startSlot && points[points.length - 1].slot >= endSlot;
+}
+
+function buildChartStateFromNormalizedHistory(
+  normalizedHistory: MarketPricePoint[],
+  event: ClosePositionEvent,
+): ClosedPositionChartState | null {
+  if (!hasNormalizedHistoryCoverage(normalizedHistory, event.start_slot, event.end_slot)) {
+    return null;
+  }
+
+  const points = buildClosedPositionMiniChart(normalizedHistory, event.start_slot, event.end_slot);
+  if (points !== null && points.length >= 2) {
+    return {
+      status: 'ready',
+      points,
+      error: null,
+    };
+  }
+
+  return {
+    status: 'unavailable',
+    points: null,
+    error: null,
+  };
+}
+
+function findNextPendingChartEvents(
+  events: ClosePositionEvent[],
+  chartStatesByEventId: ReadonlyMap<number, ClosedPositionChartState>,
+  maxCount: number,
+): ClosePositionEvent[] {
+  const pendingEvents: ClosePositionEvent[] = [];
+
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index];
+    if (!hasValidChartRange(event)) continue;
+    if (chartStatesByEventId.has(event.id)) continue;
+    pendingEvents.push(event);
+    if (pendingEvents.length >= maxCount) break;
+  }
+
+  return pendingEvents;
+}
+
 export function ClosedPositionsList({
   positionAuthority,
   marketId,
@@ -74,12 +181,159 @@ export function ClosedPositionsList({
   quoteDecimals,
   embedded = false,
   limit = 50,
+  marketHistorySeed = [],
 }: ClosedPositionsListProps) {
+  const queryClient = useQueryClient();
   const { events, loading, error } = useClosePositionEvents({
     positionAuthority,
     marketId,
     limit,
   });
+  const [chartStatesByEventId, setChartStatesByEventId] = useState<Map<number, ClosedPositionChartState>>(new Map());
+  const chartLoadRunRef = useRef(0);
+  const isMountedRef = useRef(true);
+  const normalizedSeedHistory = useMemo(
+    () => normalizeMarketPricePoints(marketHistorySeed, baseDecimals, quoteDecimals),
+    [baseDecimals, marketHistorySeed, quoteDecimals],
+  );
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    chartLoadRunRef.current += 1;
+    const cachedChartStates = new Map<number, ClosedPositionChartState>();
+
+    for (const event of events) {
+      if (!hasValidChartRange(event)) continue;
+
+      const cachedHistory = queryClient.getQueryData<MarketUpdateEvent[]>(
+        queryKeys.marketUpdates.range(marketId, event.start_slot, event.end_slot),
+      );
+      if (!cachedHistory) continue;
+
+      cachedChartStates.set(event.id, buildChartStateFromHistory(cachedHistory, event, baseDecimals, quoteDecimals));
+    }
+
+    setChartStatesByEventId(cachedChartStates);
+  }, [baseDecimals, events, marketId, queryClient, quoteDecimals]);
+
+  useEffect(() => {
+    if (normalizedSeedHistory.length === 0) {
+      return;
+    }
+
+    startTransition(() => {
+      setChartStatesByEventId((current) => {
+        let next: Map<number, ClosedPositionChartState> | null = null;
+
+        for (const event of events) {
+          if (!hasValidChartRange(event)) continue;
+          if (current.get(event.id)?.status === 'ready') continue;
+
+          const nextState = buildChartStateFromNormalizedHistory(normalizedSeedHistory, event);
+          if (nextState === null) continue;
+
+          if (next === null) {
+            next = new Map(current);
+          }
+          next.set(event.id, nextState);
+        }
+
+        return next ?? current;
+      });
+    });
+  }, [events, normalizedSeedHistory]);
+
+  const activeChartLoadCount = useMemo(() => {
+    let count = 0;
+
+    for (const chartState of chartStatesByEventId.values()) {
+      if (chartState.status === 'loading') {
+        count += 1;
+      }
+    }
+
+    return count;
+  }, [chartStatesByEventId]);
+
+  const pendingChartEvents = useMemo(() => {
+    const remainingSlots = MAX_CONCURRENT_CHART_LOADS - activeChartLoadCount;
+    if (remainingSlots <= 0) return [];
+
+    return findNextPendingChartEvents(events, chartStatesByEventId, remainingSlots);
+  }, [activeChartLoadCount, chartStatesByEventId, events]);
+
+  useEffect(() => {
+    if (pendingChartEvents.length === 0) return;
+
+    const runVersion = chartLoadRunRef.current;
+    setChartStatesByEventId((current) => {
+      const next = new Map(current);
+
+      for (const event of pendingChartEvents) {
+        if (!next.has(event.id)) {
+          next.set(event.id, { status: 'loading', points: null, error: null });
+        }
+      }
+
+      return next;
+    });
+
+    for (const event of pendingChartEvents) {
+      if (event.start_slot === null || event.end_slot === null) {
+        continue;
+      }
+
+      const startSlot = event.start_slot;
+      const endSlot = event.end_slot;
+      queryClient
+        .fetchQuery({
+          queryKey: queryKeys.marketUpdates.range(marketId, startSlot, endSlot),
+          staleTime: MARKET_UPDATE_RANGE_STALE_TIME,
+          queryFn: () =>
+            fetchMarketUpdateRange({
+              marketId,
+              startSlot,
+              endSlot,
+            }),
+        })
+        .then((marketHistory) => {
+          if (!isMountedRef.current || runVersion !== chartLoadRunRef.current) return;
+
+          startTransition(() => {
+            setChartStatesByEventId((current) => {
+              const next = new Map(current);
+              next.set(event.id, buildChartStateFromHistory(marketHistory, event, baseDecimals, quoteDecimals));
+              return next;
+            });
+          });
+        })
+        .catch((fetchError) => {
+          if (!isMountedRef.current || runVersion !== chartLoadRunRef.current) return;
+
+          const message = fetchError instanceof Error ? fetchError.message : 'Unknown error';
+          startTransition(() => {
+            setChartStatesByEventId((current) => {
+              const next = new Map(current);
+              next.set(event.id, { status: 'error', points: null, error: message });
+              return next;
+            });
+          });
+        });
+    }
+  }, [baseDecimals, events, marketId, pendingChartEvents, queryClient, quoteDecimals]);
+
+  const historyError = useMemo(() => {
+    for (const chartState of chartStatesByEventId.values()) {
+      if (chartState.error) return chartState.error;
+    }
+
+    return null;
+  }, [chartStatesByEventId]);
 
   const content = (
     <>
@@ -99,6 +353,7 @@ export function ClosedPositionsList({
             <ClosedPositionRow
               key={event.id}
               event={event}
+              chartState={chartStatesByEventId.get(event.id) ?? IDLE_CHART_STATE}
               baseTicker={baseTicker}
               quoteTicker={quoteTicker}
               baseDecimals={baseDecimals}
@@ -111,6 +366,12 @@ export function ClosedPositionsList({
       {error && (
         <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.dangerText }}>
           {error}
+        </Text>
+      )}
+
+      {historyError && !loading && events.length > 0 && (
+        <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.dangerText }}>
+          Price history unavailable: {historyError}
         </Text>
       )}
     </>
@@ -131,23 +392,48 @@ export function ClosedPositionsList({
 }
 
 interface ClosedPositionRowProps {
-  event: {
-    id: number;
-    signature: string;
-    slot: number;
-    is_buy: number;
-    deposit_amount: bigint;
-    swapped_amount: bigint;
-    remaining_amount: bigint;
-    fee_amount: bigint;
-  };
+  event: ClosePositionEvent;
+  chartState: ClosedPositionChartState;
   baseTicker: string;
   quoteTicker: string;
   baseDecimals: number;
   quoteDecimals: number;
 }
 
-function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quoteDecimals }: ClosedPositionRowProps) {
+interface ChartLegendItemProps {
+  color: string;
+  dashed?: boolean;
+  label: string;
+}
+
+function ChartLegendItem({ color, dashed = false, label }: ChartLegendItemProps) {
+  return (
+    <View className="flex-row items-center">
+      <View
+        className="mr-1.5"
+        style={{
+          width: 14,
+          borderTopWidth: dashed ? 1 : 2,
+          borderTopColor: color,
+          borderStyle: dashed ? 'dashed' : 'solid',
+          opacity: 0.95,
+        }}
+      />
+      <Text className="text-[10px] leading-4" style={{ color: uiColors.textSubtle }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+const ClosedPositionRow = memo(function ClosedPositionRow({
+  event,
+  chartState,
+  baseTicker,
+  quoteTicker,
+  baseDecimals,
+  quoteDecimals,
+}: ClosedPositionRowProps) {
   const [expanded, setExpanded] = useState(false);
   const isBuy = event.is_buy === 1;
   const sideLabel = isBuy ? 'Buy' : 'Sell';
@@ -167,11 +453,24 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
   const feeAtoms = event.fee_amount;
   const receivedAtoms = subtractFloorZero(swappedAtoms, feeAtoms);
 
-  const quoteNumeratorAtoms = isBuy ? consumedAtoms : receivedAtoms;
-  const baseDenominatorAtoms = isBuy ? receivedAtoms : consumedAtoms;
-  const effectivePrice = computeEffectivePrice(quoteNumeratorAtoms, quoteDecimals, baseDenominatorAtoms, baseDecimals);
-  const effectivePriceLabel = isBuy ? 'Effective price paid' : 'Effective price received';
+  const grossQuoteAtoms = isBuy ? consumedAtoms : swappedAtoms;
+  const grossBaseAtoms = isBuy ? swappedAtoms : consumedAtoms;
+  const averageFillPrice = computeUnitPrice(grossQuoteAtoms, quoteDecimals, grossBaseAtoms, baseDecimals);
+
+  const netQuoteAtoms = isBuy ? consumedAtoms : receivedAtoms;
+  const netBaseAtoms = isBuy ? receivedAtoms : consumedAtoms;
+  const netEffectivePrice = computeUnitPrice(netQuoteAtoms, quoteDecimals, netBaseAtoms, baseDecimals);
+  const averageFillPriceLabel = 'Average fill price';
+  const netEffectivePriceLabel = isBuy ? 'Net price paid after fee' : 'Net price received after fee';
   const consumedLabel = isBuy ? 'Actually Spent' : 'Actually Sold';
+  const chartPoints = chartState.points;
+  const hasChart = chartState.status === 'ready' && chartPoints !== null && chartPoints.length >= 2;
+  const showChartSection = hasChart;
+  const showNetEffectivePrice =
+    netEffectivePrice !== null &&
+    averageFillPrice !== null &&
+    Math.abs(netEffectivePrice - averageFillPrice) > Math.max(averageFillPrice, 1) * 1e-9;
+  const averageLineColor = isBuy ? uiColors.buyText : uiColors.dangerText;
 
   const handleOpenTx = () => {
     if (event.signature) {
@@ -214,110 +513,149 @@ function ClosedPositionRow({ event, baseTicker, quoteTicker, baseDecimals, quote
           </View>
         </View>
 
-        {!expanded && (
-          <View
-            className="flex-row items-center justify-between mt-3 pt-3 border-t"
-            style={{ borderTopColor: uiColors.divider }}
-          >
-            <Text
-              className="text-[14px] font-semibold leading-5"
-              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-            >
-              {formatAtomsToDisplay(consumedAtoms, depositDecimals)} {depositToken}
-            </Text>
-            <Text className="text-[11px] leading-4" style={{ color: uiColors.textSubtle }}>
-              →
-            </Text>
-            <Text
-              className="text-[14px] font-semibold leading-5"
-              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-            >
-              {formatAtomsToDisplay(receivedAtoms, swappedDecimals)} {swappedToken}
-            </Text>
-            {effectivePrice !== null && (
-              <Text className="text-[11px] leading-4" style={[{ color: uiColors.textSubtle }, TABULAR_NUMS]}>
-                @ {formatPrice(effectivePrice)}
-              </Text>
-            )}
-          </View>
-        )}
+        <View className="mt-3 pt-3 border-t" style={{ borderTopColor: uiColors.divider }}>
+          {showChartSection && hasChart && (
+            <View className="flex-row items-center justify-end mb-2">
+              <ChartLegendItem color={uiColors.primary} label="Price" />
+              <View className="w-3" />
+              <ChartLegendItem color={averageLineColor} dashed label="Avg fill" />
+            </View>
+          )}
 
-        {expanded && (
-          <View className="mt-3 pt-3 border-t" style={{ borderTopColor: uiColors.divider }}>
-            <View className="flex-row justify-between mb-2">
-              <View className="flex-1 pr-2">
-                <Text
-                  className="text-[10px] font-semibold leading-4"
-                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
-                >
-                  Deposited
-                </Text>
-                <Text
-                  className="text-[14px] font-semibold leading-5"
-                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                >
-                  {formatAtomsToDisplay(depositedAtoms, depositDecimals)} {depositToken}
-                </Text>
-              </View>
-              <View className="flex-1 pl-2">
-                <Text
-                  className="text-[10px] font-semibold leading-4"
-                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
-                >
-                  {consumedLabel}
-                </Text>
-                <Text
-                  className="text-[14px] font-semibold leading-5"
-                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                >
-                  {formatAtomsToDisplay(consumedAtoms, depositDecimals)} {depositToken}
-                </Text>
-              </View>
-            </View>
-            <View className="flex-row justify-between mb-2">
-              <View className="flex-1 pr-2">
-                <Text
-                  className="text-[10px] font-semibold leading-4"
-                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
-                >
-                  Received
-                </Text>
-                <Text
-                  className="text-[14px] font-semibold leading-5"
-                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                >
-                  {formatAtomsToDisplay(receivedAtoms, swappedDecimals)} {swappedToken}
-                </Text>
-              </View>
-              <View className="flex-1 pl-2">
-                <Text
-                  className="text-[10px] font-semibold leading-4"
-                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
-                >
-                  Fee
-                </Text>
-                <Text
-                  className="text-[14px] font-semibold leading-5"
-                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                >
-                  {formatAtomsToDisplay(feeAtoms, feeDecimals)} {feeToken}
-                </Text>
-              </View>
-            </View>
-            <View className="mt-1.5 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
-              <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
-                {effectivePriceLabel}
+          {hasChart && (
+            <MiniPriceChart
+              points={chartPoints}
+              averagePrice={averageFillPrice}
+              lineColor={uiColors.primary}
+              averageLineColor={averageLineColor}
+              showYAxisLabels
+              formatValue={formatPrice}
+            />
+          )}
+
+          {!expanded && (
+            <View className={`flex-row items-center justify-between ${showChartSection ? 'mt-3' : ''}`}>
+              <Text
+                className="text-[14px] font-semibold leading-5"
+                style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+              >
+                {formatAtomsToDisplay(consumedAtoms, depositDecimals)} {depositToken}
+              </Text>
+              <Text className="text-[11px] leading-4" style={{ color: uiColors.textSubtle }}>
+                →
               </Text>
               <Text
                 className="text-[14px] font-semibold leading-5"
                 style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
               >
-                {effectivePrice === null ? '—' : `${formatPrice(effectivePrice)} ${quoteTicker}/${baseTicker}`}
+                {formatAtomsToDisplay(receivedAtoms, swappedDecimals)} {swappedToken}
               </Text>
+              {averageFillPrice !== null && (
+                <Text className="text-[11px] leading-4" style={[{ color: uiColors.textSubtle }, TABULAR_NUMS]}>
+                  @ {formatPrice(averageFillPrice)}
+                </Text>
+              )}
             </View>
-          </View>
-        )}
+          )}
+
+          {expanded && (
+            <View className={showChartSection ? 'mt-3' : ''}>
+              <View className="flex-row justify-between mb-2">
+                <View className="flex-1 pr-2">
+                  <Text
+                    className="text-[10px] font-semibold leading-4"
+                    style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                  >
+                    Deposited
+                  </Text>
+                  <Text
+                    className="text-[14px] font-semibold leading-5"
+                    style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                  >
+                    {formatAtomsToDisplay(depositedAtoms, depositDecimals)} {depositToken}
+                  </Text>
+                </View>
+                <View className="flex-1 pl-2">
+                  <Text
+                    className="text-[10px] font-semibold leading-4"
+                    style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                  >
+                    {consumedLabel}
+                  </Text>
+                  <Text
+                    className="text-[14px] font-semibold leading-5"
+                    style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                  >
+                    {formatAtomsToDisplay(consumedAtoms, depositDecimals)} {depositToken}
+                  </Text>
+                </View>
+              </View>
+              <View className="flex-row justify-between mb-2">
+                <View className="flex-1 pr-2">
+                  <Text
+                    className="text-[10px] font-semibold leading-4"
+                    style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                  >
+                    Received
+                  </Text>
+                  <Text
+                    className="text-[14px] font-semibold leading-5"
+                    style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                  >
+                    {formatAtomsToDisplay(receivedAtoms, swappedDecimals)} {swappedToken}
+                  </Text>
+                </View>
+                <View className="flex-1 pl-2">
+                  <Text
+                    className="text-[10px] font-semibold leading-4"
+                    style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                  >
+                    Fee
+                  </Text>
+                  <Text
+                    className="text-[14px] font-semibold leading-5"
+                    style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                  >
+                    {formatAtomsToDisplay(feeAtoms, feeDecimals)} {feeToken}
+                  </Text>
+                </View>
+              </View>
+              <View className="mt-1.5 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
+                <Text
+                  className="text-[10px] font-semibold leading-4"
+                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                >
+                  {averageFillPriceLabel}
+                </Text>
+                <Text
+                  className="text-[14px] font-semibold leading-5"
+                  style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                >
+                  {averageFillPrice === null ? '—' : `${formatPrice(averageFillPrice)} ${quoteTicker}/${baseTicker}`}
+                </Text>
+              </View>
+              {showNetEffectivePrice && netEffectivePrice !== null && (
+                <View className="mt-1.5 pt-2 border-t" style={{ borderTopColor: uiColors.divider }}>
+                  <Text
+                    className="text-[10px] font-semibold leading-4"
+                    style={[{ color: uiColors.textSubtle }, OVERLINE]}
+                  >
+                    {netEffectivePriceLabel}
+                  </Text>
+                  <Text
+                    className="text-[14px] font-semibold leading-5"
+                    style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                  >
+                    {`${formatPrice(netEffectivePrice)} ${quoteTicker}/${baseTicker}`}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
       </View>
     </Pressable>
   );
-}
+});
+
+ClosedPositionRow.displayName = 'ClosedPositionRow';

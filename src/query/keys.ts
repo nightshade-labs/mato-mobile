@@ -22,6 +22,8 @@ export const queryKeys = {
   marketUpdates: {
     all: ['marketUpdates'] as const,
     list: (marketId: number, limit: number) => ['marketUpdates', marketId, limit] as const,
+    range: (marketId: number, startSlot: number | null, endSlot: number | null) =>
+      ['marketUpdates', marketId, 'range', startSlot ?? 'none', endSlot ?? 'none'] as const,
   },
   marketConfig: {
     all: ['marketConfig'] as const,

@@ -891,6 +891,7 @@ export default function App() {
                   baseDecimals={baseDecimals}
                   quoteDecimals={quoteDecimals}
                   limit={10}
+                  marketHistorySeed={marketEvents}
                 />
               ) : (
                 <Text className="text-sm leading-6 py-3" style={{ color: uiColors.textMuted }}>
@@ -1203,6 +1204,7 @@ export default function App() {
                 quoteTicker={quoteTicker}
                 baseDecimals={baseDecimals}
                 quoteDecimals={quoteDecimals}
+                marketHistorySeed={marketEvents}
               />
             )}
           </View>
