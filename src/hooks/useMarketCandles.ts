@@ -28,11 +28,18 @@ interface ReadApiCandlesResponse {
   items: ReadApiCandleItem[];
 }
 
-const MAX_POINTS = 1500;
+const MAX_POINTS = 5000;
+const MAX_POINTS_HEADROOM = 200;
+const MAX_RANGE_POINTS = MAX_POINTS - MAX_POINTS_HEADROOM;
 const INITIAL_BARS_BY_TIMEFRAME: Record<MarketChartTimeframe, number> = {
   '1m': 180,
   '5m': 220,
   '1h': 140,
+};
+const LOAD_MORE_BARS_BY_TIMEFRAME: Record<MarketChartTimeframe, number> = {
+  '1m': 360,
+  '5m': 300,
+  '1h': 240,
 };
 
 function timeframeToInterval(timeframe: MarketChartTimeframe): CandleInterval {
@@ -45,6 +52,14 @@ function timeframeToIntervalMs(timeframe: MarketChartTimeframe): number {
   if (timeframe === '5m') return 5 * 60 * 1000;
   if (timeframe === '1h') return 60 * 60 * 1000;
   return 60 * 1000;
+}
+
+function estimateRangePoints(rangeStartMs: number, intervalMs: number, nowMs: number): number {
+  if (rangeStartMs <= 0 || intervalMs <= 0) {
+    return 0;
+  }
+
+  return Math.max(1, Math.ceil((nowMs + intervalMs - rangeStartMs) / intervalMs));
 }
 
 async function fetchMarketCandlesWindow({
@@ -124,6 +139,7 @@ export function useMarketCandles({
   const query = useQuery({
     queryKey: [...queryKeys.marketUpdates.all, 'candles', marketId, timeframe, rangeStartMs] as const,
     enabled: rangeStartMs > 0,
+    placeholderData: (previous) => previous,
     queryFn: async () =>
       fetchMarketCandlesWindow({
         fromMs: rangeStartMs,
@@ -164,7 +180,28 @@ export function useMarketCandles({
       return;
     }
 
-    const extendByBars = Math.max(query.data.length, 120);
+    const nowMs = Date.now();
+    const estimatedPoints = estimateRangePoints(rangeStartMs, intervalMs, nowMs);
+    if (estimatedPoints >= MAX_RANGE_POINTS) {
+      setHasMoreHistory(false);
+      return;
+    }
+
+    const remainingBarsBudget = MAX_RANGE_POINTS - estimatedPoints;
+    if (remainingBarsBudget <= 0) {
+      setHasMoreHistory(false);
+      return;
+    }
+
+    const extendByBars = Math.min(
+      LOAD_MORE_BARS_BY_TIMEFRAME[timeframe],
+      remainingBarsBudget,
+    );
+    if (extendByBars <= 0) {
+      setHasMoreHistory(false);
+      return;
+    }
+
     const nextRangeStart = Math.max(0, rangeStartMs - extendByBars * intervalMs);
     if (nextRangeStart === rangeStartMs) {
       setHasMoreHistory(false);
@@ -174,7 +211,7 @@ export function useMarketCandles({
     setExpectedOldestTime(currentOldest);
     setLoadingMoreHistory(true);
     setRangeStartMs(nextRangeStart);
-  }, [hasMoreHistory, intervalMs, loadingMoreHistory, query.data, rangeStartMs]);
+  }, [hasMoreHistory, intervalMs, loadingMoreHistory, query.data, rangeStartMs, timeframe]);
 
   const chartCandles = useMemo(() => toChartCandles(query.data ?? []), [query.data]);
   const tradingViewCandles = useMemo(() => toTradingViewCandles(query.data ?? []), [query.data]);

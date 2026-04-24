@@ -362,7 +362,16 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
           var previousRange = chart.timeScale().getVisibleLogicalRange();
           var previousLength = currentDataLength;
           var previousFirstTime = currentFirstTime;
-          var previousLastTime = currentLastTime;
+          var barsPrepended = 0;
+          if (previousFirstTime !== null) {
+            for (var idx = 0; idx < formattedCandles.length; idx += 1) {
+              if (formattedCandles[idx].time < previousFirstTime) {
+                barsPrepended += 1;
+              } else {
+                break;
+              }
+            }
+          }
 
           candleSeries.setData(formattedCandles);
 
@@ -380,18 +389,15 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
           currentFirstTime = formattedCandles[0].time;
           currentLastTime = formattedCandles[formattedCandles.length - 1].time;
 
-          var prependedHistory =
-            previousLength > 0 &&
-            currentDataLength > previousLength &&
-            previousFirstTime !== null &&
-            currentFirstTime < previousFirstTime &&
-            currentLastTime === previousLastTime;
-
-          if (prependedHistory && previousRange && typeof previousRange.from === 'number') {
-            var barsAdded = currentDataLength - previousLength;
+          if (
+            hasInitialData &&
+            previousRange &&
+            typeof previousRange.from === 'number' &&
+            typeof previousRange.to === 'number'
+          ) {
             chart.timeScale().setVisibleLogicalRange({
-              from: previousRange.from + barsAdded,
-              to: previousRange.to + barsAdded,
+              from: previousRange.from + barsPrepended,
+              to: previousRange.to + barsPrepended,
             });
           } else if (!hasInitialData) {
             chart.timeScale().fitContent();
