@@ -2,7 +2,10 @@ import { memo, startTransition, useEffect, useMemo, useRef, useState } from 'rea
 import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native';
 import type { TextStyle } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { MARKET_UPDATE_RANGE_STALE_TIME, fetchMarketUpdateRange } from '../hooks/useMarketUpdateRange';
+import {
+  CLOSED_POSITION_MINI_CHART_STALE_TIME,
+  fetchClosedPositionMiniChart,
+} from '../hooks/useMarketUpdateRange';
 import { useClosePositionEvents } from '../integrations/supabase/useClosePositionEvents';
 import type { ClosePositionEvent, MarketUpdateEvent } from '../integrations/supabase/types';
 import { queryKeys } from '../query/keys';
@@ -90,20 +93,14 @@ function shortenSignature(sig: string): string {
   return `${sig.slice(0, 6)}...${sig.slice(-4)}`;
 }
 
-function hasValidChartRange(event: ClosePositionEvent): boolean {
+function hasValidChartRange(
+  event: ClosePositionEvent,
+): event is ClosePositionEvent & { start_slot: number; end_slot: number } {
   return event.start_slot !== null && event.end_slot !== null && event.start_slot <= event.end_slot;
 }
 
-function buildChartStateFromHistory(
-  marketHistory: MarketUpdateEvent[],
-  event: ClosePositionEvent,
-  baseDecimals: number,
-  quoteDecimals: number,
-): ClosedPositionChartState {
-  const normalizedHistory = normalizeMarketPricePoints(marketHistory, baseDecimals, quoteDecimals);
-  const points = buildClosedPositionMiniChart(normalizedHistory, event.start_slot, event.end_slot);
-
-  if (points !== null && points.length >= 2) {
+function buildChartStateFromMiniChartPoints(points: MiniPriceChartPoint[]): ClosedPositionChartState {
+  if (points.length >= 2) {
     return {
       status: 'ready',
       points,
@@ -172,6 +169,10 @@ function findNextPendingChartEvents(
   return pendingEvents;
 }
 
+function closedPositionMiniChartQueryKey(marketId: number, startSlot: number, endSlot: number) {
+  return [...queryKeys.marketUpdates.all, 'closed-position-mini-chart', marketId, startSlot, endSlot] as const;
+}
+
 export function ClosedPositionsList({
   positionAuthority,
   marketId,
@@ -210,16 +211,16 @@ export function ClosedPositionsList({
     for (const event of events) {
       if (!hasValidChartRange(event)) continue;
 
-      const cachedHistory = queryClient.getQueryData<MarketUpdateEvent[]>(
-        queryKeys.marketUpdates.range(marketId, event.start_slot, event.end_slot),
+      const cachedHistory = queryClient.getQueryData<MiniPriceChartPoint[]>(
+        closedPositionMiniChartQueryKey(marketId, event.start_slot, event.end_slot),
       );
       if (!cachedHistory) continue;
 
-      cachedChartStates.set(event.id, buildChartStateFromHistory(cachedHistory, event, baseDecimals, quoteDecimals));
+      cachedChartStates.set(event.id, buildChartStateFromMiniChartPoints(cachedHistory));
     }
 
     setChartStatesByEventId(cachedChartStates);
-  }, [baseDecimals, events, marketId, queryClient, quoteDecimals]);
+  }, [events, marketId, queryClient]);
 
   useEffect(() => {
     if (normalizedSeedHistory.length === 0) {
@@ -292,22 +293,22 @@ export function ClosedPositionsList({
       const endSlot = event.end_slot;
       queryClient
         .fetchQuery({
-          queryKey: queryKeys.marketUpdates.range(marketId, startSlot, endSlot),
-          staleTime: MARKET_UPDATE_RANGE_STALE_TIME,
+          queryKey: closedPositionMiniChartQueryKey(marketId, startSlot, endSlot),
+          staleTime: CLOSED_POSITION_MINI_CHART_STALE_TIME,
           queryFn: () =>
-            fetchMarketUpdateRange({
+            fetchClosedPositionMiniChart({
               marketId,
               startSlot,
               endSlot,
             }),
         })
-        .then((marketHistory) => {
+        .then((points) => {
           if (!isMountedRef.current || runVersion !== chartLoadRunRef.current) return;
 
           startTransition(() => {
             setChartStatesByEventId((current) => {
               const next = new Map(current);
-              next.set(event.id, buildChartStateFromHistory(marketHistory, event, baseDecimals, quoteDecimals));
+              next.set(event.id, buildChartStateFromMiniChartPoints(points));
               return next;
             });
           });
@@ -325,7 +326,7 @@ export function ClosedPositionsList({
           });
         });
     }
-  }, [baseDecimals, events, marketId, pendingChartEvents, queryClient, quoteDecimals]);
+  }, [events, marketId, pendingChartEvents, queryClient]);
 
   const historyError = useMemo(() => {
     for (const chartState of chartStatesByEventId.values()) {

@@ -25,8 +25,8 @@ import { useSubmitOrder } from '../hooks/useSubmitOrder';
 import { useTradePositions } from '../hooks/useTradePositions';
 import { useClosePosition } from '../hooks/useClosePosition';
 import { useStreamingMarketState } from '../hooks/useStreamingMarketState';
+import { useMarketCandles } from '../hooks/useMarketCandles';
 import { useMarketUpdates } from '../integrations/supabase/useMarketUpdates';
-import { aggregateCandles, aggregateTradingViewCandles } from '../utils/candles';
 import { ConnectButton } from '../components/ConnectButton';
 import { PercentageSlider } from '../components/PercentageSlider';
 import { ClosedPositionsList } from '../components/ClosedPositionsList';
@@ -201,11 +201,7 @@ export default function App() {
   const { state: streamingState, error: streamingStateError } = useStreamingMarketState(MARKET, !!selectedAccount);
   const {
     events: marketEvents,
-    loading: marketEventsLoading,
     error: marketEventsError,
-    loadMoreHistory,
-    loadingMoreHistory,
-    hasMoreHistory,
   } = useMarketUpdates({
     marketId: MARKET_ID,
     limit: 600,
@@ -283,14 +279,18 @@ export default function App() {
     () => CHART_TIMEFRAMES.find((option) => option.label === chartTimeframe)?.intervalMs ?? 60 * 60 * 1000,
     [chartTimeframe],
   );
-  const chartCandles = useMemo(() => {
-    if (!config) return [];
-    return aggregateCandles(marketEvents, chartIntervalMs, config.base_decimals, config.quote_decimals);
-  }, [marketEvents, chartIntervalMs, config]);
-  const tradingViewCandles = useMemo(() => {
-    if (!config) return [];
-    return aggregateTradingViewCandles(marketEvents, chartIntervalMs, config.base_decimals, config.quote_decimals);
-  }, [marketEvents, chartIntervalMs, config]);
+  const {
+    chartCandles,
+    tradingViewCandles,
+    hasMoreHistory,
+    loading: candlesLoading,
+    loadingMoreHistory,
+    error: candlesError,
+    loadMoreHistory,
+  } = useMarketCandles({
+    marketId: MARKET_ID,
+    timeframe: chartTimeframe,
+  });
   const latestChartCandle = chartCandles.length > 0 ? chartCandles[chartCandles.length - 1] : null;
   const latestTradingViewCandle =
     tradingViewCandles.length > 0 ? tradingViewCandles[tradingViewCandles.length - 1] : null;
@@ -833,7 +833,7 @@ export default function App() {
 
               {!isChartTimeframeReady ? (
                 <ActivityIndicator size="small" color={uiColors.textMuted} />
-              ) : marketEventsLoading && chartCandles.length === 0 && tradingViewCandles.length === 0 ? (
+              ) : candlesLoading && chartCandles.length === 0 && tradingViewCandles.length === 0 ? (
                 <ActivityIndicator size="small" color={uiColors.textMuted} />
               ) : chartCandles.length === 0 && tradingViewCandles.length === 0 ? (
                 <Text className="text-sm" style={{ color: uiColors.textSubtle }}>
@@ -904,6 +904,11 @@ export default function App() {
           {marketEventsError && (
             <Text className="text-sm leading-5 mt-2 px-4" style={{ color: uiColors.dangerText }}>
               {marketEventsError}
+            </Text>
+          )}
+          {candlesError && (
+            <Text className="text-sm leading-5 mt-2 px-4" style={{ color: uiColors.dangerText }}>
+              {candlesError}
             </Text>
           )}
           {marketPriceError && (

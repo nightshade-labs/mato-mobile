@@ -1,13 +1,38 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from './client';
-import type { MarketUpdateEvent, MarketUpdateEventRow } from './types';
+import { useQuery } from '@tanstack/react-query';
+import { readApiUrl } from '../../api/readApi';
+import type { MarketUpdateEvent } from './types';
 import { parseMarketUpdateEvent } from './types';
 import { queryKeys } from '../../query/keys';
 
 interface UseMarketUpdatesOptions {
   marketId: number;
   limit?: number;
+}
+
+const FNV64_OFFSET_BASIS = 0xcbf29ce484222325n;
+const FNV64_PRIME = 0x100000001b3n;
+const FNV64_MASK = 0xffffffffffffffffn;
+const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
+
+interface ReadApiMarketUpdateItem {
+  event_uid: string;
+  signature: string;
+  event_index: number;
+  slot: number;
+  market_id: number;
+  base_flow: string;
+  quote_flow: string;
+  created_at: string;
+}
+
+interface ReadApiMarketUpdatesResponse {
+  market_id: number;
+  before_slot: number | null;
+  has_more: boolean;
+  limit: number;
+  points: number;
+  items: Array<ReadApiMarketUpdateItem>;
 }
 
 function sortBySlotDesc(events: MarketUpdateEvent[]): MarketUpdateEvent[] {
@@ -25,9 +50,71 @@ function dedupeById(events: MarketUpdateEvent[]): MarketUpdateEvent[] {
   return deduped;
 }
 
+function stableEventIdFromUid(eventUid: string) {
+  let hash = FNV64_OFFSET_BASIS;
+
+  for (let index = 0; index < eventUid.length; index += 1) {
+    hash ^= BigInt(eventUid.charCodeAt(index));
+    hash = (hash * FNV64_PRIME) & FNV64_MASK;
+  }
+
+  const normalized = hash % MAX_SAFE_INTEGER_BIGINT;
+  return Number(normalized === 0n ? 1n : normalized);
+}
+
+function parseReadApiMarketUpdates(items: Array<ReadApiMarketUpdateItem>) {
+  return items.map((item) =>
+    parseMarketUpdateEvent({
+      id: stableEventIdFromUid(item.event_uid),
+      signature: item.signature,
+      slot: item.slot,
+      market_id: item.market_id,
+      base_flow: item.base_flow,
+      quote_flow: item.quote_flow,
+      created_at: item.created_at,
+    }),
+  );
+}
+
+async function fetchMarketUpdatesPage({
+  beforeSlot,
+  limit,
+  marketId,
+}: {
+  beforeSlot?: number;
+  limit: number;
+  marketId: number;
+}) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+  });
+  if (beforeSlot !== undefined) {
+    params.set('before_slot', String(beforeSlot));
+  }
+
+  const response = await fetch(readApiUrl(`/v1/markets/${marketId}/updates?${params.toString()}`), {
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Failed to fetch market updates (${response.status}): ${body || response.statusText}`);
+  }
+
+  const payload = (await response.json()) as ReadApiMarketUpdatesResponse;
+  return {
+    hasMore: payload.has_more,
+    items: parseReadApiMarketUpdates(payload.items),
+  };
+}
+
 export function useMarketUpdates({ marketId, limit = 50 }: UseMarketUpdatesOptions) {
-  const queryClient = useQueryClient();
-  const queryKey = useMemo(() => queryKeys.marketUpdates.list(marketId, limit), [marketId, limit]);
+  const queryKey = useMemo(
+    () => queryKeys.marketUpdates.list(marketId, limit),
+    [marketId, limit],
+  );
   const [historicalEvents, setHistoricalEvents] = useState<MarketUpdateEvent[]>([]);
   const [loadingMoreHistory, setLoadingMoreHistory] = useState(false);
   const [hasMoreHistory, setHasMoreHistory] = useState(true);
@@ -37,18 +124,11 @@ export function useMarketUpdates({ marketId, limit = 50 }: UseMarketUpdatesOptio
   const query = useQuery<MarketUpdateEvent[]>({
     queryKey,
     queryFn: async () => {
-      const { data, error: fetchError } = await supabase
-        .from('market_update_events')
-        .select('*')
-        .eq('market_id', marketId)
-        .order('slot', { ascending: false })
-        .limit(limit);
-
-      if (fetchError) {
-        throw new Error(fetchError.message);
-      }
-
-      return (data ?? []).map(parseMarketUpdateEvent);
+      const result = await fetchMarketUpdatesPage({
+        limit,
+        marketId,
+      });
+      return result.items;
     },
     refetchInterval: 5_000,
     refetchIntervalInBackground: true,
@@ -61,6 +141,19 @@ export function useMarketUpdates({ marketId, limit = 50 }: UseMarketUpdatesOptio
     setHistoryError(null);
     loadingMoreHistoryRef.current = false;
   }, [marketId, limit]);
+
+  useEffect(() => {
+    const latestEvents = query.data ?? [];
+    if (latestEvents.length === 0) {
+      return;
+    }
+
+    if (latestEvents.length < limit) {
+      setHasMoreHistory(false);
+    } else {
+      setHasMoreHistory(true);
+    }
+  }, [limit, query.data]);
 
   const events = useMemo(() => {
     const latest = query.data ?? [];
@@ -78,22 +171,16 @@ export function useMarketUpdates({ marketId, limit = 50 }: UseMarketUpdatesOptio
     setHistoryError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('market_update_events')
-        .select('*')
-        .eq('market_id', marketId)
-        .lt('slot', oldestEvent.slot)
-        .order('slot', { ascending: false })
-        .limit(limit);
+      const result = await fetchMarketUpdatesPage({
+        beforeSlot: oldestEvent.slot,
+        limit,
+        marketId,
+      });
 
-      if (fetchError) {
-        setHistoryError(fetchError.message);
-        return;
-      }
-
-      const parsed = (data ?? []).map(parseMarketUpdateEvent);
-      setHistoricalEvents((previous) => sortBySlotDesc(dedupeById([...previous, ...parsed])));
-      if (parsed.length < limit) {
+      setHistoricalEvents((previous) =>
+        sortBySlotDesc(dedupeById([...previous, ...result.items])),
+      );
+      if (!result.hasMore) {
         setHasMoreHistory(false);
       }
     } catch (error) {
@@ -103,33 +190,6 @@ export function useMarketUpdates({ marketId, limit = 50 }: UseMarketUpdatesOptio
       loadingMoreHistoryRef.current = false;
     }
   }, [events, hasMoreHistory, limit, marketId]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel(`market_updates_${marketId}`)
-      .on<MarketUpdateEventRow>(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'market_update_events',
-          filter: `market_id=eq.${marketId}`,
-        },
-        (payload) => {
-          const parsed = parseMarketUpdateEvent(payload.new);
-
-          queryClient.setQueryData<MarketUpdateEvent[]>(queryKey, (previous) => {
-            const current = previous ?? [];
-            return sortBySlotDesc(dedupeById([parsed, ...current])).slice(0, limit);
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [marketId, limit, queryClient, queryKey]);
 
   return {
     events,
