@@ -739,7 +739,7 @@ export default function App() {
         style={{ backgroundColor: uiColors.background, borderBottomColor: uiColors.divider }}
       >
         <View className="mb-3 flex-row items-center justify-between">
-          <Image source={require('../../assets/splash.png')} style={{ width: 48, height: 48 }} resizeMode="contain" />
+          <Image source={require('../../assets/icon.png')} style={{ width: 48, height: 48 }} resizeMode="contain" />
           <View className="flex-row items-center">
             {selectedAccount ? (
               <Text className="text-[11px] font-medium mr-3" style={{ color: uiColors.textMuted }}>
