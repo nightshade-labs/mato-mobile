@@ -21,7 +21,7 @@ export const RPC_ENDPOINT = configuredSolanaRpcUrl || (SOLANA_NETWORK === 'devne
 export const CLUSTER = SOLANA_NETWORK === 'devnet' ? DEVNET_CLUSTER : MAINNET_CLUSTER;
 
 // TWOB PROGRAM CONSTANTS
-export const ARRAY_LENGTH = 20;
+export const ARRAY_LENGTH = 10;
 
 export const MARKET_ID = 1;
 export const SLOT_DURATION_MS = 400;
