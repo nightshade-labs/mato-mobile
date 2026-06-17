@@ -180,7 +180,7 @@ function durationToSlots(seconds: number): number {
 }
 
 function explorerTransactionUrl(signature: string): string {
-  const explorerCluster = CLUSTER.startsWith('solana:') ? CLUSTER.slice('solana:'.length) : 'devnet';
+  const explorerCluster = CLUSTER.startsWith('solana:') ? CLUSTER.slice('solana:'.length) : 'mainnet';
   return `https://explorer.solana.com/tx/${encodeURIComponent(signature)}?cluster=${encodeURIComponent(explorerCluster)}`;
 }
 

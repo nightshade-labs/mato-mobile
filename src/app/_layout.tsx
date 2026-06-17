@@ -1,9 +1,9 @@
 import '../global.css';
 
 import { Slot } from 'expo-router';
-import { MobileWalletProvider, createSolanaDevnet } from '@wallet-ui/react-native-kit';
+import { MobileWalletProvider, createSolanaDevnet, createSolanaMainnet } from '@wallet-ui/react-native-kit';
 import { Toaster } from 'sonner-native';
-import { APP_IDENTITY } from '../utils/constants';
+import { APP_IDENTITY, RPC_ENDPOINT, SOLANA_NETWORK } from '../utils/constants';
 import { AuthorizationProvider } from '../providers/AuthorizationProvider';
 import { ConnectionProvider } from '../providers/ConnectionProvider';
 import { QueryProvider } from '../providers/QueryProvider';
@@ -12,7 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar, Text, View } from 'react-native';
 import { uiColors } from '../theme/colors';
 
-const cluster = createSolanaDevnet();
+const cluster = SOLANA_NETWORK === 'devnet' ? createSolanaDevnet() : createSolanaMainnet(RPC_ENDPOINT);
 const TOAST_ICON_SIZE = 20;
 
 const successToastIcon = (

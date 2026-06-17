@@ -8,13 +8,17 @@ export const APP_IDENTITY = {
 
 export const AUTH_TOKEN_KEY = 'mwa_auth_token';
 
-export const RPC_ENDPOINT = 'https://api.devnet.solana.com';
-
-export const CLUSTER = 'solana:devnet' as const;
-
-// Alternative endpoints for production
 export const MAINNET_RPC = 'https://api.mainnet-beta.solana.com';
 export const MAINNET_CLUSTER = 'solana:mainnet' as const;
+export const DEVNET_RPC = 'https://api.devnet.solana.com';
+export const DEVNET_CLUSTER = 'solana:devnet' as const;
+
+const configuredSolanaCluster = process.env.EXPO_PUBLIC_SOLANA_CLUSTER?.trim().toLowerCase();
+const configuredSolanaRpcUrl = process.env.EXPO_PUBLIC_SOLANA_RPC_URL?.trim();
+
+export const SOLANA_NETWORK = configuredSolanaCluster === 'devnet' ? 'devnet' : 'mainnet';
+export const RPC_ENDPOINT = configuredSolanaRpcUrl || (SOLANA_NETWORK === 'devnet' ? DEVNET_RPC : MAINNET_RPC);
+export const CLUSTER = SOLANA_NETWORK === 'devnet' ? DEVNET_CLUSTER : MAINNET_CLUSTER;
 
 // TWOB PROGRAM CONSTANTS
 export const ARRAY_LENGTH = 20;

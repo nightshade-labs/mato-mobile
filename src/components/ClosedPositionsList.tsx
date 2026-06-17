@@ -2,14 +2,12 @@ import { memo, startTransition, useEffect, useMemo, useRef, useState } from 'rea
 import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native';
 import type { TextStyle } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  CLOSED_POSITION_MINI_CHART_STALE_TIME,
-  fetchClosedPositionMiniChart,
-} from '../hooks/useMarketUpdateRange';
+import { CLOSED_POSITION_MINI_CHART_STALE_TIME, fetchClosedPositionMiniChart } from '../hooks/useMarketUpdateRange';
 import { useClosePositionEvents } from '../integrations/supabase/useClosePositionEvents';
 import type { ClosePositionEvent, MarketUpdateEvent } from '../integrations/supabase/types';
 import { queryKeys } from '../query/keys';
 import { uiColors } from '../theme/colors';
+import { CLUSTER } from '../utils/constants';
 import {
   buildClosedPositionMiniChart,
   type MarketPricePoint,
@@ -475,7 +473,9 @@ const ClosedPositionRow = memo(function ClosedPositionRow({
 
   const handleOpenTx = () => {
     if (event.signature) {
-      Linking.openURL(`https://solscan.io/tx/${event.signature}?cluster=devnet`);
+      const explorerCluster = CLUSTER.startsWith('solana:') ? CLUSTER.slice('solana:'.length) : 'mainnet';
+      const clusterQuery = explorerCluster === 'mainnet' ? '' : `?cluster=${encodeURIComponent(explorerCluster)}`;
+      Linking.openURL(`https://solscan.io/tx/${event.signature}${clusterQuery}`);
     }
   };
 

@@ -22,10 +22,13 @@ Fill these values from the matching `mato-ui` deployment/project settings:
 EXPO_PUBLIC_SUPABASE_URL=
 EXPO_PUBLIC_SUPABASE_ANON_KEY=
 EXPO_PUBLIC_READ_API_URL=
+EXPO_PUBLIC_SOLANA_CLUSTER=mainnet
+EXPO_PUBLIC_SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 ```
 
 Expo only exposes variables prefixed with `EXPO_PUBLIC_` to the app bundle.
 Restart `npm run android` or `npm run dev` after changing `.env`.
+Use `EXPO_PUBLIC_SOLANA_CLUSTER=devnet` only when intentionally testing against devnet data and wallets.
 
 ## Android Device
 
