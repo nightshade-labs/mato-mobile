@@ -19,11 +19,13 @@ interface ClosePositionResult {
   status: ClosePositionStatus;
   signature: string | null;
   error: string | null;
+  closedCount: number;
 }
 
 interface ClosePositionAccounts {
   market: PublicKey;
-  tradePosition: PublicKey;
+  tradePosition?: PublicKey;
+  tradePositions?: PublicKey[];
 }
 
 interface ClosePositionMutationResult {
@@ -40,6 +42,7 @@ export function useClosePosition() {
     status: 'idle',
     signature: null,
     error: null,
+    closedCount: 0,
   });
 
   const mutation = useMutation<ClosePositionMutationResult, unknown, ClosePositionAccounts>({
@@ -59,10 +62,6 @@ export function useClosePosition() {
         ]);
 
         const endSlotInterval = market.endSlotInterval.toNumber();
-        const tradePosition = await program.account.tradePosition.fetch(accounts.tradePosition);
-        const futureIndex = new BN(tradePosition.endSlot.toNumber() / ARRAY_LENGTH / endSlotInterval);
-
-        // Derive exits/prices PDAs from current slot
         const slot = await connection.getSlot('confirmed');
         const referenceIndex = new BN(Math.floor((slot + 20) / (ARRAY_LENGTH * endSlotInterval)));
         const previousIndex = referenceIndex.sub(new BN(1));
@@ -71,29 +70,44 @@ export function useClosePosition() {
         const previousExits = resolver.exitsPda(accounts.market, previousIndex);
         const currentPrices = resolver.pricesPda(accounts.market, referenceIndex);
         const previousPrices = resolver.pricesPda(accounts.market, previousIndex);
-        const futureExits = resolver.exitsPda(accounts.market, futureIndex);
-        const futurePrices = resolver.pricesPda(accounts.market, futureIndex);
+        const tradePositionAddresses =
+          accounts.tradePositions && accounts.tradePositions.length > 0
+            ? accounts.tradePositions
+            : accounts.tradePosition
+              ? [accounts.tradePosition]
+              : [];
+        if (tradePositionAddresses.length === 0) {
+          throw new Error('No positions selected to close');
+        }
 
-        const ix = await program.methods
-          .authorityClosePosition(referenceIndex)
-          .accountsPartial({
-            authority: account.publicKey,
-            baseMint: market.baseMint,
-            quoteMint: market.quoteMint,
-            market: accounts.market,
-            tradePosition: accounts.tradePosition,
-            futureExits,
-            futurePrices,
-            currentExits,
-            previousExits,
-            currentPrices,
-            previousPrices,
-            baseTokenProgram,
-            quoteTokenProgram,
-          })
-          .instruction();
+        const instructions: TransactionInstruction[] = [];
+        for (const tradePositionAddress of tradePositionAddresses) {
+          const tradePosition = await program.account.tradePosition.fetch(tradePositionAddress);
+          const futureIndex = new BN(tradePosition.endSlot.toNumber() / ARRAY_LENGTH / endSlotInterval);
+          const futureExits = resolver.exitsPda(accounts.market, futureIndex);
+          const futurePrices = resolver.pricesPda(accounts.market, futureIndex);
 
-        const instructions: TransactionInstruction[] = [ix];
+          const ix = await program.methods
+            .authorityClosePosition(referenceIndex)
+            .accountsPartial({
+              authority: account.publicKey,
+              baseMint: market.baseMint,
+              quoteMint: market.quoteMint,
+              market: accounts.market,
+              tradePosition: tradePositionAddress,
+              futureExits,
+              futurePrices,
+              currentExits,
+              previousExits,
+              currentPrices,
+              previousPrices,
+              baseTokenProgram,
+              quoteTokenProgram,
+            })
+            .instruction();
+
+          instructions.push(ix);
+        }
 
         // If base or quote is native mint, close the WSOL ATA to unwrap back to SOL
         for (const [mint, tokenProgram] of [
@@ -144,7 +158,7 @@ export function useClosePosition() {
       return { signature, authority };
     },
     onSuccess: async ({ signature, authority }) => {
-      setResult({ status: 'success', signature, error: null });
+      setResult((previous) => ({ status: 'success', signature, error: null, closedCount: previous.closedCount }));
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.balance.byAuthority(authority) }),
@@ -156,17 +170,18 @@ export function useClosePosition() {
       const mwaError = handleMWAError(error);
 
       if (mwaError.isUserCancellation) {
-        setResult({ status: 'idle', signature: null, error: null });
+        setResult({ status: 'idle', signature: null, error: null, closedCount: 0 });
         return;
       }
 
-      setResult({ status: 'error', signature: null, error: mwaError.userMessage });
+      setResult({ status: 'error', signature: null, error: mwaError.userMessage, closedCount: 0 });
     },
   });
 
   const closePosition = useCallback(
     async (accounts: ClosePositionAccounts): Promise<boolean> => {
-      setResult({ status: 'building', signature: null, error: null });
+      const closedCount = accounts.tradePositions?.length ?? (accounts.tradePosition ? 1 : 0);
+      setResult({ status: 'building', signature: null, error: null, closedCount });
       try {
         await mutation.mutateAsync(accounts);
         return true;
@@ -179,7 +194,7 @@ export function useClosePosition() {
 
   const reset = useCallback(() => {
     mutation.reset();
-    setResult({ status: 'idle', signature: null, error: null });
+    setResult({ status: 'idle', signature: null, error: null, closedCount: 0 });
   }, [mutation]);
 
   return { closePosition, reset, ...result };
