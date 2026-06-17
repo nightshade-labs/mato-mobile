@@ -8,6 +8,35 @@ It uses a continuous clearing auction: the market clears continuously as buy and
 
 ![Continuous Clearing Auction](assets/cca.png)
 
+## Environment
+
+Create a local Expo environment file before starting the app:
+
+```bash
+cp .env.example .env
+```
+
+Fill these values from the matching `mato-ui` deployment/project settings:
+
+```bash
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
+EXPO_PUBLIC_READ_API_URL=
+```
+
+Expo only exposes variables prefixed with `EXPO_PUBLIC_` to the app bundle.
+Restart `npm run android` or `npm run dev` after changing `.env`.
+
+## Android Device
+
+With Android platform tools installed and USB debugging enabled on the phone:
+
+```bash
+npm ci
+adb devices
+npm run android
+```
+
 ## Worktrees
 
 To create a new worktree and install repo-local tools like `expo`, `tsc`, `eslint`, and `prettier` in that worktree:
