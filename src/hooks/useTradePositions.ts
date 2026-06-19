@@ -6,6 +6,7 @@ import { queryKeys } from '../query/keys';
 
 export interface TradePosition {
   publicKey: PublicKey;
+  authority: PublicKey;
   id: BN;
   amount: BN;
   startSlot: BN;
@@ -29,6 +30,7 @@ export function useTradePositions(authority: PublicKey | null) {
 
       return accounts.map((a) => ({
         publicKey: a.publicKey,
+        authority: a.account.authority as PublicKey,
         id: a.account.id as BN,
         amount: a.account.amount as BN,
         startSlot: a.account.startSlot as BN,

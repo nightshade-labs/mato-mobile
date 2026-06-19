@@ -171,6 +171,11 @@ function closedPositionMiniChartQueryKey(marketId: number, startSlot: number, en
   return [...queryKeys.marketUpdates.all, 'closed-position-mini-chart', marketId, startSlot, endSlot] as const;
 }
 
+function sortClosedPositionEventsNewestFirst(left: ClosePositionEvent, right: ClosePositionEvent): number {
+  if (right.slot !== left.slot) return right.slot - left.slot;
+  return right.id - left.id;
+}
+
 export function ClosedPositionsList({
   positionAuthority,
   marketId,
@@ -195,6 +200,7 @@ export function ClosedPositionsList({
     () => normalizeMarketPricePoints(marketHistorySeed, baseDecimals, quoteDecimals),
     [baseDecimals, marketHistorySeed, quoteDecimals],
   );
+  const sortedEvents = useMemo(() => [...events].sort(sortClosedPositionEventsNewestFirst), [events]);
 
   useEffect(() => {
     return () => {
@@ -206,7 +212,7 @@ export function ClosedPositionsList({
     chartLoadRunRef.current += 1;
     const cachedChartStates = new Map<number, ClosedPositionChartState>();
 
-    for (const event of events) {
+    for (const event of sortedEvents) {
       if (!hasValidChartRange(event)) continue;
 
       const cachedHistory = queryClient.getQueryData<MiniPriceChartPoint[]>(
@@ -218,7 +224,7 @@ export function ClosedPositionsList({
     }
 
     setChartStatesByEventId(cachedChartStates);
-  }, [events, marketId, queryClient]);
+  }, [marketId, queryClient, sortedEvents]);
 
   useEffect(() => {
     if (normalizedSeedHistory.length === 0) {
@@ -229,7 +235,7 @@ export function ClosedPositionsList({
       setChartStatesByEventId((current) => {
         let next: Map<number, ClosedPositionChartState> | null = null;
 
-        for (const event of events) {
+        for (const event of sortedEvents) {
           if (!hasValidChartRange(event)) continue;
           if (current.get(event.id)?.status === 'ready') continue;
 
@@ -245,7 +251,7 @@ export function ClosedPositionsList({
         return next ?? current;
       });
     });
-  }, [events, normalizedSeedHistory]);
+  }, [normalizedSeedHistory, sortedEvents]);
 
   const activeChartLoadCount = useMemo(() => {
     let count = 0;
@@ -263,8 +269,8 @@ export function ClosedPositionsList({
     const remainingSlots = MAX_CONCURRENT_CHART_LOADS - activeChartLoadCount;
     if (remainingSlots <= 0) return [];
 
-    return findNextPendingChartEvents(events, chartStatesByEventId, remainingSlots);
-  }, [activeChartLoadCount, chartStatesByEventId, events]);
+    return findNextPendingChartEvents(sortedEvents, chartStatesByEventId, remainingSlots);
+  }, [activeChartLoadCount, chartStatesByEventId, sortedEvents]);
 
   useEffect(() => {
     if (pendingChartEvents.length === 0) return;
@@ -324,7 +330,7 @@ export function ClosedPositionsList({
           });
         });
     }
-  }, [events, marketId, pendingChartEvents, queryClient]);
+  }, [marketId, pendingChartEvents, queryClient]);
 
   const historyError = useMemo(() => {
     for (const chartState of chartStatesByEventId.values()) {
@@ -342,13 +348,13 @@ export function ClosedPositionsList({
 
       {loading ? (
         <ActivityIndicator size="small" color={uiColors.textMuted} />
-      ) : events.length === 0 ? (
+      ) : sortedEvents.length === 0 ? (
         <Text className="text-sm leading-5" style={{ color: uiColors.textSubtle }}>
           No closed positions yet.
         </Text>
       ) : (
         <View>
-          {events.map((event) => (
+          {sortedEvents.map((event) => (
             <ClosedPositionRow
               key={event.id}
               event={event}
@@ -368,7 +374,7 @@ export function ClosedPositionsList({
         </Text>
       )}
 
-      {historyError && !loading && events.length > 0 && (
+      {historyError && !loading && sortedEvents.length > 0 && (
         <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.dangerText }}>
           Price history unavailable: {historyError}
         </Text>

@@ -88,14 +88,17 @@ export function OrderBookTable({
   const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all');
   const activeOrderCount = useMemo(
     () =>
-      positions.filter(
-        (position) => currentSlot === null || BigInt(Math.floor(currentSlot)) <= toBigInt(position.endSlot),
-      ).length,
+      currentSlot === null
+        ? 0
+        : positions.filter((position) => BigInt(Math.floor(currentSlot)) <= toBigInt(position.endSlot)).length,
     [currentSlot, positions],
   );
   const rows = useMemo(() => {
+    if (currentSlot === null) return [];
+    const currentSlotBigInt = BigInt(Math.floor(currentSlot));
+
     return positions
-      .filter((position) => currentSlot === null || BigInt(Math.floor(currentSlot)) <= toBigInt(position.endSlot))
+      .filter((position) => currentSlotBigInt <= toBigInt(position.endSlot))
       .map((position) => createOrderBookRow({ baseDecimals, baseTicker, position, quoteDecimals, quoteTicker }))
       .filter((row) => {
         if (directionFilter === 'all') return true;
@@ -130,7 +133,7 @@ export function OrderBookTable({
         })}
       </View>
 
-      {isLoading && rows.length === 0 ? (
+      {(isLoading || currentSlot === null) && rows.length === 0 ? (
         <OrderBookState>
           <ActivityIndicator size="small" color={uiColors.textMuted} />
           <Text className="mt-2 text-sm leading-5" style={{ color: uiColors.textSubtle }}>

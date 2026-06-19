@@ -103,14 +103,6 @@ function formatSignedNumber(value: number, decimals: number): string {
   return `${value >= 0 ? '+' : '-'}${absolute}`;
 }
 
-function formatCompactNumber(value: number): string {
-  const absolute = Math.abs(value);
-  if (absolute >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`;
-  if (absolute >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
-  if (absolute >= 1_000) return `${(value / 1_000).toFixed(2)}K`;
-  return value.toFixed(2);
-}
-
 function marketPriceFromFlows(
   baseFlow: bigint,
   quoteFlow: bigint,
@@ -180,7 +172,7 @@ export default function App() {
     signature: closeSignature,
     closedCount,
   } = useClosePosition();
-  const { state: streamingState, error: streamingStateError } = useStreamingMarketState(MARKET, !!selectedAccount);
+  const { state: streamingState, error: streamingStateError } = useStreamingMarketState(MARKET);
   const nativeSolBalance = useSolBalance();
   const orderBookPositions = useMarketTradePositions(MARKET);
   const { events: marketEvents, error: marketEventsError } = useMarketUpdates({
@@ -313,38 +305,6 @@ export default function App() {
         : null;
   const priceDeltaPercent =
     priceDelta !== null && displayPrice !== null && displayPrice > 0 ? (priceDelta / displayPrice) * 100 : null;
-
-  const recent24hEvents = useMemo(() => {
-    if (!config) return [];
-    const threshold = Date.now() - 24 * 60 * 60 * 1000;
-    return marketEvents.filter((event) => new Date(event.created_at).getTime() >= threshold);
-  }, [marketEvents, config]);
-
-  const marketStats = useMemo(() => {
-    if (!config || recent24hEvents.length === 0) {
-      return { high: null as number | null, low: null as number | null, volumeQuote: null as number | null };
-    }
-
-    const prices = recent24hEvents
-      .map((event) =>
-        marketPriceFromFlows(event.base_flow, event.quote_flow, config.base_decimals, config.quote_decimals),
-      )
-      .filter((value): value is number => value !== null);
-
-    if (prices.length === 0) {
-      return { high: null as number | null, low: null as number | null, volumeQuote: null as number | null };
-    }
-
-    const volumeQuote = recent24hEvents.reduce((sum, event) => {
-      return sum + Math.abs(Number(event.quote_flow) / 10 ** config.quote_decimals);
-    }, 0);
-
-    return {
-      high: Math.max(...prices),
-      low: Math.min(...prices),
-      volumeQuote,
-    };
-  }, [recent24hEvents, config]);
 
   const amountUiValue = useMemo(() => {
     if (!amountAtoms || amountAtoms <= 0n) return null;
@@ -750,7 +710,7 @@ export default function App() {
             }}
           >
             <Text className="text-sm font-semibold leading-5" style={{ color: uiColors.textSecondary }}>
-              {marketPanelTab === 'chart' ? 'Chart' : 'Orders'}
+              {marketPanelTab === 'chart' ? '▥ Chart' : '☰ Orders'}
             </Text>
           </Pressable>
         </View>
@@ -761,44 +721,6 @@ export default function App() {
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
       >
-        <View className="mb-4 px-4">
-          <View className="flex-row justify-between">
-            <View className="flex-1 pr-2 border-r" style={{ borderRightColor: uiColors.divider }}>
-              <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
-                24h High
-              </Text>
-              <Text
-                className="text-[14px] font-semibold mt-0.5 leading-5"
-                style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-              >
-                {marketStats.high === null ? '—' : `$${marketStats.high.toFixed(4)}`}
-              </Text>
-            </View>
-            <View className="flex-1 px-2 border-r" style={{ borderRightColor: uiColors.divider }}>
-              <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
-                24h Low
-              </Text>
-              <Text
-                className="text-[14px] font-semibold mt-0.5 leading-5"
-                style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-              >
-                {marketStats.low === null ? '—' : `$${marketStats.low.toFixed(4)}`}
-              </Text>
-            </View>
-            <View className="flex-1 pl-2">
-              <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
-                24h Vol ({quoteTicker})
-              </Text>
-              <Text
-                className="text-[14px] font-semibold mt-0.5 leading-5"
-                style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-              >
-                {marketStats.volumeQuote === null ? '—' : formatCompactNumber(marketStats.volumeQuote)}
-              </Text>
-            </View>
-          </View>
-        </View>
-
         <Modal
           animationType="slide"
           onRequestClose={() => setIsMarketPanelOpen(false)}
@@ -857,8 +779,8 @@ export default function App() {
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View className="flex-row items-center mb-4">
                   {[
-                    { key: 'chart', label: 'Chart' },
-                    { key: 'orderBook', label: 'Orders' },
+                    { key: 'chart', label: '▥ Chart' },
+                    { key: 'orderBook', label: '☰ Orders' },
                   ].map((tab) => {
                     const isActive = marketPanelTab === tab.key;
                     return (
@@ -917,7 +839,7 @@ export default function App() {
                           style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
                         >
                           <Text className="text-sm font-semibold leading-5" style={{ color: uiColors.textSecondary }}>
-                            Reset
+                            ↻ Reset
                           </Text>
                         </Pressable>
                       )}

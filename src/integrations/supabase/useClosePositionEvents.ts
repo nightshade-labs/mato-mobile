@@ -5,6 +5,8 @@ import type { ClosePositionEvent } from './types';
 import { parseClosePositionEvent } from './types';
 import { queryKeys } from '../../query/keys';
 
+const EMPTY_CLOSE_POSITION_EVENTS: ClosePositionEvent[] = [];
+
 interface UseClosePositionEventsOptions {
   positionAuthority: string;
   marketId?: number;
@@ -43,7 +45,7 @@ export function useClosePositionEvents({ positionAuthority, marketId, limit = 50
   });
 
   return {
-    events: query.data ?? [],
+    events: query.data ?? EMPTY_CLOSE_POSITION_EVENTS,
     loading: query.isPending || query.isFetching,
     error: query.error instanceof Error ? query.error.message : null,
     refetch: query.refetch,
