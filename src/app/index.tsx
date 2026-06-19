@@ -6,6 +6,7 @@ import {
   Image,
   Keyboard,
   Linking,
+  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -782,10 +783,10 @@ export default function App() {
 
         <View className="mt-3 flex-row justify-end">
           <Pressable
-            onPress={() => setIsMarketPanelOpen((current) => !current)}
+            onPress={() => setIsMarketPanelOpen(true)}
             className="rounded-full border px-3.5 py-2"
             style={{
-              backgroundColor: isMarketPanelOpen ? uiColors.panelSoft : 'transparent',
+              backgroundColor: uiColors.panelSoft,
               borderColor: uiColors.border,
             }}
           >
@@ -839,204 +840,273 @@ export default function App() {
           </View>
         </View>
 
-        {isMarketPanelOpen && (
-          <View className="mb-5">
-            <View className="flex-row items-end border-b mb-3 px-4" style={{ borderBottomColor: uiColors.divider }}>
-              {[
-                { key: 'chart', label: 'Chart' },
-                { key: 'orderBook', label: 'Order Book' },
-              ].map((tab) => (
-                <Pressable
-                  key={tab.key}
-                  onPress={() => setMarketPanelTab(tab.key as MarketPanelTab)}
-                  className="px-2 pb-2.5 pt-1.5 mr-4 border-b"
-                  style={{ borderBottomColor: marketPanelTab === tab.key ? uiColors.primary : 'transparent' }}
-                >
-                  <Text
-                    className="text-[15px] font-medium leading-5"
-                    style={{ color: marketPanelTab === tab.key ? uiColors.primaryText : uiColors.textMuted }}
-                  >
-                    {tab.label}
+        <Modal
+          animationType="slide"
+          onRequestClose={() => setIsMarketPanelOpen(false)}
+          transparent
+          visible={isMarketPanelOpen}
+        >
+          <View className="flex-1 justify-end" style={{ backgroundColor: uiColors.overlay }}>
+            <Pressable className="flex-1" onPress={() => setIsMarketPanelOpen(false)} />
+            <View
+              className="rounded-t-xl border px-4 pt-3 pb-5"
+              style={{
+                backgroundColor: uiColors.drawerSurface,
+                borderColor: uiColors.border,
+                maxHeight: '88%',
+              }}
+            >
+              <View className="mx-auto mb-4 h-1.5 w-12 rounded-full" style={{ backgroundColor: uiColors.textSubtle }} />
+              <View className="mb-4 flex-row items-start justify-between pr-10">
+                <View>
+                  <Text className="text-base font-semibold leading-5" style={{ color: uiColors.textPrimary }}>
+                    {baseTicker}/{quoteTicker}
                   </Text>
-                </Pressable>
-              ))}
-            </View>
-
-            {marketPanelTab === 'chart' && (
-              <>
-                <View className="flex-row items-center justify-between mb-3 px-4">
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-1 mr-3">
-                    <View className="flex-row items-end">
-                      {CHART_TIMEFRAMES.map((option) => (
-                        <Pressable
-                          key={option.label}
-                          onPress={() => handleTimeframeChange(option.label)}
-                          className="px-2 pb-1.5 mr-3 border-b"
-                          style={{
-                            borderBottomColor: option.label === chartTimeframe ? uiColors.primary : 'transparent',
-                          }}
-                        >
-                          <Text
-                            className="text-[15px] font-medium leading-5"
-                            style={{
-                              color: option.label === chartTimeframe ? uiColors.primaryText : uiColors.textMuted,
-                            }}
-                          >
-                            {option.label}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </ScrollView>
-                  {ENABLE_ADVANCED_CHART && (
-                    <Pressable
-                      onPress={handleResetChartView}
-                      className="px-3 py-1.5 border"
-                      style={{ borderColor: uiColors.divider }}
-                    >
-                      <Text className="text-xs font-semibold tracking-wide" style={{ color: uiColors.textSecondary }}>
-                        Reset
-                      </Text>
-                    </Pressable>
-                  )}
-                </View>
-
-                {activeOhlcv && (
-                  <View
-                    className="mb-3 border-y py-2 px-4"
-                    style={{ borderTopColor: uiColors.divider, borderBottomColor: uiColors.divider }}
-                  >
-                    <View className="flex-row justify-between">
-                      <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
-                        O{' '}
-                        <Text
-                          className="text-xs font-semibold leading-5"
-                          style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                        >
-                          {activeOhlcv.open.toFixed(2)}
-                        </Text>
-                      </Text>
-                      <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
-                        H{' '}
-                        <Text
-                          className="text-xs font-semibold leading-5"
-                          style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                        >
-                          {activeOhlcv.high.toFixed(2)}
-                        </Text>
-                      </Text>
-                      <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
-                        L{' '}
-                        <Text
-                          className="text-xs font-semibold leading-5"
-                          style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                        >
-                          {activeOhlcv.low.toFixed(2)}
-                        </Text>
-                      </Text>
-                      <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
-                        C{' '}
-                        <Text
-                          className="text-xs font-semibold leading-5"
-                          style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                        >
-                          {activeOhlcv.close.toFixed(2)}
-                        </Text>
-                      </Text>
-                      <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }} numberOfLines={1}>
-                        V{' '}
-                        <Text
-                          className="text-xs font-semibold leading-5"
-                          style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                        >
-                          {activeOhlcv.volume === null ? '—' : formatCompactNumber(activeOhlcv.volume)}
-                        </Text>
-                      </Text>
-                    </View>
-                    {activeOhlcvTimeLabel && (
-                      <Text className="text-[11px] mt-1 leading-4" style={{ color: uiColors.textSubtle }}>
-                        {activeOhlcvTimeLabel}
-                      </Text>
-                    )}
-                  </View>
-                )}
-
-                {!isChartTimeframeReady ? (
-                  <ActivityIndicator size="small" color={uiColors.textMuted} />
-                ) : candlesLoading && chartCandles.length === 0 && tradingViewCandles.length === 0 ? (
-                  <ActivityIndicator size="small" color={uiColors.textMuted} />
-                ) : chartCandles.length === 0 && tradingViewCandles.length === 0 ? (
-                  <Text className="text-sm" style={{ color: uiColors.textSubtle }}>
-                    Not enough market updates to render chart yet.
-                  </Text>
-                ) : (
-                  <View className="overflow-hidden relative" style={{ backgroundColor: uiColors.chartBackground }}>
-                    {ENABLE_ADVANCED_CHART ? (
-                      <TradingViewChart
-                        data={tradingViewCandles}
-                        lastCandle={latestTradingViewCandle}
-                        onCrosshairMove={setCrosshairData}
-                        onRequestMoreHistory={handleLoadMoreMarketHistory}
-                        resetSignal={chartResetSignal}
-                        hasMoreHistory={hasMoreHistory}
-                        loadingMoreHistory={loadingMoreHistory}
-                        height={320}
-                      />
-                    ) : (
-                      <CandleChart data={chartCandles} height={250} />
-                    )}
-                    {isSwitchingTimeframe && (
+                  <View className="mt-1 flex-row items-center">
+                    <Text className="text-sm leading-5" style={[{ color: uiColors.textMuted }, TABULAR_NUMS]}>
+                      {displayPrice !== null ? `$${displayPrice.toFixed(4)}` : '—'}
+                    </Text>
+                    {priceDelta !== null && priceDeltaPercent !== null && (
                       <View
-                        className="absolute inset-0 items-center justify-center"
-                        style={{ backgroundColor: uiColors.overlay }}
+                        className="ml-2 px-2.5 py-1 rounded-full"
+                        style={{
+                          backgroundColor: priceDelta >= 0 ? uiColors.successBg : uiColors.dangerBg,
+                          borderColor: priceDelta >= 0 ? uiColors.successBorder : uiColors.dangerBorder,
+                          borderWidth: 1,
+                        }}
                       >
-                        <Text className="text-xs" style={{ color: uiColors.textSecondary }}>
-                          Switching timeframe...
+                        <Text
+                          className="text-[11px] font-semibold leading-4"
+                          style={[{ color: priceDelta >= 0 ? uiColors.buyText : uiColors.dangerText }, TABULAR_NUMS]}
+                        >
+                          {formatSignedNumber(priceDeltaPercent, 2)}%
                         </Text>
                       </View>
                     )}
                   </View>
-                )}
-              </>
-            )}
+                </View>
+                <Pressable
+                  onPress={() => setIsMarketPanelOpen(false)}
+                  className="absolute right-0 top-0 h-9 w-9 items-center justify-center rounded-full"
+                  style={{ backgroundColor: uiColors.panelSoft }}
+                >
+                  <Text className="text-lg leading-6" style={{ color: uiColors.textSecondary }}>
+                    X
+                  </Text>
+                </Pressable>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View className="flex-row items-center mb-4">
+                  {[
+                    { key: 'chart', label: 'Chart' },
+                    { key: 'orderBook', label: 'Orders' },
+                  ].map((tab) => {
+                    const isActive = marketPanelTab === tab.key;
+                    return (
+                      <Pressable
+                        key={tab.key}
+                        onPress={() => setMarketPanelTab(tab.key as MarketPanelTab)}
+                        className="rounded-full border px-3.5 py-2 mr-2"
+                        style={{
+                          backgroundColor: isActive ? uiColors.primary : uiColors.panelSoft,
+                          borderColor: isActive ? uiColors.primaryPress : uiColors.border,
+                        }}
+                      >
+                        <Text
+                          className="text-sm font-semibold leading-5"
+                          style={{ color: isActive ? uiColors.primaryText : uiColors.textMuted }}
+                        >
+                          {tab.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
 
-            {marketPanelTab === 'orderBook' && (
-              <View className="px-4 py-3">
-                <OrderBookTable
-                  baseDecimals={baseDecimals}
-                  baseTicker={baseTicker}
-                  currentSlot={currentSlot}
-                  isLoading={orderBookPositions.loading}
-                  positions={orderBookPositions.positions}
-                  quoteDecimals={quoteDecimals}
-                  quoteTicker={quoteTicker}
-                  streamingState={streamingState}
-                />
-                {orderBookPositions.error && (
-                  <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.dangerText }}>
-                    {orderBookPositions.error}
+                {marketPanelTab === 'chart' && (
+                  <>
+                    <View className="flex-row items-center justify-between mb-3 px-4">
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-1 mr-3">
+                        <View className="flex-row items-end">
+                          {CHART_TIMEFRAMES.map((option) => (
+                            <Pressable
+                              key={option.label}
+                              onPress={() => handleTimeframeChange(option.label)}
+                              className="px-2 pb-1.5 mr-3 border-b"
+                              style={{
+                                borderBottomColor: option.label === chartTimeframe ? uiColors.primary : 'transparent',
+                              }}
+                            >
+                              <Text
+                                className="text-[15px] font-medium leading-5"
+                                style={{
+                                  color: option.label === chartTimeframe ? uiColors.primaryText : uiColors.textMuted,
+                                }}
+                              >
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </ScrollView>
+                      {ENABLE_ADVANCED_CHART && (
+                        <Pressable
+                          onPress={handleResetChartView}
+                          className="px-3 py-1.5 border"
+                          style={{ borderColor: uiColors.divider }}
+                        >
+                          <Text
+                            className="text-xs font-semibold tracking-wide"
+                            style={{ color: uiColors.textSecondary }}
+                          >
+                            Reset
+                          </Text>
+                        </Pressable>
+                      )}
+                    </View>
+
+                    {activeOhlcv && (
+                      <View
+                        className="mb-3 border-y py-2 px-4"
+                        style={{ borderTopColor: uiColors.divider, borderBottomColor: uiColors.divider }}
+                      >
+                        <View className="flex-row justify-between">
+                          <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
+                            O{' '}
+                            <Text
+                              className="text-xs font-semibold leading-5"
+                              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                            >
+                              {activeOhlcv.open.toFixed(2)}
+                            </Text>
+                          </Text>
+                          <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
+                            H{' '}
+                            <Text
+                              className="text-xs font-semibold leading-5"
+                              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                            >
+                              {activeOhlcv.high.toFixed(2)}
+                            </Text>
+                          </Text>
+                          <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
+                            L{' '}
+                            <Text
+                              className="text-xs font-semibold leading-5"
+                              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                            >
+                              {activeOhlcv.low.toFixed(2)}
+                            </Text>
+                          </Text>
+                          <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
+                            C{' '}
+                            <Text
+                              className="text-xs font-semibold leading-5"
+                              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                            >
+                              {activeOhlcv.close.toFixed(2)}
+                            </Text>
+                          </Text>
+                          <Text
+                            className="text-[11px] leading-5"
+                            style={{ color: uiColors.textSubtle }}
+                            numberOfLines={1}
+                          >
+                            V{' '}
+                            <Text
+                              className="text-xs font-semibold leading-5"
+                              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
+                            >
+                              {activeOhlcv.volume === null ? '—' : formatCompactNumber(activeOhlcv.volume)}
+                            </Text>
+                          </Text>
+                        </View>
+                        {activeOhlcvTimeLabel && (
+                          <Text className="text-[11px] mt-1 leading-4" style={{ color: uiColors.textSubtle }}>
+                            {activeOhlcvTimeLabel}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+
+                    {!isChartTimeframeReady ? (
+                      <ActivityIndicator size="small" color={uiColors.textMuted} />
+                    ) : candlesLoading && chartCandles.length === 0 && tradingViewCandles.length === 0 ? (
+                      <ActivityIndicator size="small" color={uiColors.textMuted} />
+                    ) : chartCandles.length === 0 && tradingViewCandles.length === 0 ? (
+                      <Text className="text-sm" style={{ color: uiColors.textSubtle }}>
+                        Not enough market updates to render chart yet.
+                      </Text>
+                    ) : (
+                      <View className="overflow-hidden relative" style={{ backgroundColor: uiColors.chartBackground }}>
+                        {ENABLE_ADVANCED_CHART ? (
+                          <TradingViewChart
+                            data={tradingViewCandles}
+                            lastCandle={latestTradingViewCandle}
+                            onCrosshairMove={setCrosshairData}
+                            onRequestMoreHistory={handleLoadMoreMarketHistory}
+                            resetSignal={chartResetSignal}
+                            hasMoreHistory={hasMoreHistory}
+                            loadingMoreHistory={loadingMoreHistory}
+                            height={320}
+                          />
+                        ) : (
+                          <CandleChart data={chartCandles} height={250} />
+                        )}
+                        {isSwitchingTimeframe && (
+                          <View
+                            className="absolute inset-0 items-center justify-center"
+                            style={{ backgroundColor: uiColors.overlay }}
+                          >
+                            <Text className="text-xs" style={{ color: uiColors.textSecondary }}>
+                              Switching timeframe...
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </>
+                )}
+
+                {marketPanelTab === 'orderBook' && (
+                  <View className="px-4 py-3">
+                    <OrderBookTable
+                      baseDecimals={baseDecimals}
+                      baseTicker={baseTicker}
+                      currentSlot={currentSlot}
+                      isLoading={orderBookPositions.loading}
+                      positions={orderBookPositions.positions}
+                      quoteDecimals={quoteDecimals}
+                      quoteTicker={quoteTicker}
+                      streamingState={streamingState}
+                    />
+                    {orderBookPositions.error && (
+                      <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.dangerText }}>
+                        {orderBookPositions.error}
+                      </Text>
+                    )}
+                  </View>
+                )}
+
+                {marketEventsError && (
+                  <Text className="text-sm leading-5 mt-2 px-4" style={{ color: uiColors.dangerText }}>
+                    {marketEventsError}
                   </Text>
                 )}
-              </View>
-            )}
-
-            {marketEventsError && (
-              <Text className="text-sm leading-5 mt-2 px-4" style={{ color: uiColors.dangerText }}>
-                {marketEventsError}
-              </Text>
-            )}
-            {candlesError && (
-              <Text className="text-sm leading-5 mt-2 px-4" style={{ color: uiColors.dangerText }}>
-                {candlesError}
-              </Text>
-            )}
-            {marketPriceError && (
-              <Text className="text-sm leading-5 mt-2 px-4" style={{ color: uiColors.dangerText }}>
-                {marketPriceError}
-              </Text>
-            )}
+                {candlesError && (
+                  <Text className="text-sm leading-5 mt-2 px-4" style={{ color: uiColors.dangerText }}>
+                    {candlesError}
+                  </Text>
+                )}
+                {marketPriceError && (
+                  <Text className="text-sm leading-5 mt-2 px-4" style={{ color: uiColors.dangerText }}>
+                    {marketPriceError}
+                  </Text>
+                )}
+              </ScrollView>
+            </View>
           </View>
-        )}
+        </Modal>
 
         {lowSubmitNativeSolWarning && (
           <View
@@ -1414,9 +1484,6 @@ export default function App() {
             <Text className="mt-2 text-sm leading-5" style={{ color: uiColors.textSubtle }}>
               Connect your wallet to load active and closed positions.
             </Text>
-            <View className="mt-4">
-              <ConnectButton />
-            </View>
           </View>
         )}
       </ScrollView>
