@@ -982,16 +982,16 @@ export default function App() {
 
         <View className="mx-4 pt-5 pb-4">
           <View
-            className="rounded-[18px] border px-4 py-5"
+            className="rounded-xl border px-4 py-5"
             style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
           >
             <View
-              className="flex-row rounded-[14px] border p-1 mb-5"
+              className="flex-row rounded-xl border p-1 mb-5"
               style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
             >
               <Pressable
                 onPress={() => handleSideChange('buy')}
-                className="h-9 flex-1 rounded-[10px] items-center justify-center"
+                className="h-9 flex-1 rounded-lg items-center justify-center"
                 style={{ backgroundColor: side === 'buy' ? uiColors.primary : 'transparent' }}
               >
                 <Text
@@ -1003,7 +1003,7 @@ export default function App() {
               </Pressable>
               <Pressable
                 onPress={() => handleSideChange('sell')}
-                className="h-9 flex-1 rounded-[10px] items-center justify-center"
+                className="h-9 flex-1 rounded-lg items-center justify-center"
                 style={{ backgroundColor: side === 'sell' ? uiColors.primary : 'transparent' }}
               >
                 <Text
@@ -1016,7 +1016,7 @@ export default function App() {
             </View>
 
             <View
-              className="rounded-[16px] border p-4 mb-5"
+              className="rounded-xl border p-4 mb-5"
               style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
             >
               <View className="flex-row items-start justify-between mb-3">
@@ -1055,7 +1055,7 @@ export default function App() {
               </View>
 
               <View
-                className="rounded-[18px] border p-2"
+                className="rounded-xl border p-2"
                 style={{
                   backgroundColor: amountValidationMessage ? uiColors.dangerBg : uiColors.panel,
                   borderColor: amountValidationMessage ? uiColors.dangerBorder : uiColors.border,
@@ -1125,7 +1125,7 @@ export default function App() {
 
             <View className="flex-row mb-5">
               <View
-                className="flex-1 rounded-[16px] border p-3 mr-2"
+                className="flex-1 rounded-xl border p-3 mr-2"
                 style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
               >
                 <Text className="mb-1 text-[11px] leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
@@ -1139,7 +1139,7 @@ export default function App() {
                 </Text>
               </View>
               <View
-                className="flex-1 rounded-[16px] border p-3 ml-2"
+                className="flex-1 rounded-xl border p-3 ml-2"
                 style={{
                   backgroundColor: priceImpactWarningText ? uiColors.warningBg : uiColors.panelSoft,
                   borderColor: priceImpactWarningText ? uiColors.warningBorder : uiColors.border,
@@ -1167,7 +1167,7 @@ export default function App() {
 
             {priceImpactWarningText && (
               <View
-                className="rounded-[16px] border px-3 py-2 mb-5"
+                className="rounded-xl border px-3 py-2 mb-5"
                 style={{ backgroundColor: uiColors.warningBg, borderColor: uiColors.warningBorder }}
               >
                 <Text className="text-sm leading-5" style={{ color: uiColors.warningText }}>
@@ -1232,7 +1232,7 @@ export default function App() {
               <Pressable
                 onPress={handleSubmitOrder}
                 disabled={submitDisabled}
-                className="h-12 rounded-[16px] items-center justify-center"
+                className="h-12 rounded-xl items-center justify-center"
                 style={{
                   backgroundColor: submitDisabled ? uiColors.disabledBg : uiColors.primary,
                 }}
@@ -1309,7 +1309,7 @@ export default function App() {
 
           {lowMaintenanceNativeSolWarning && selectedAccount && positionPanelTab === 'active' && (
             <View
-              className="rounded-[16px] border px-3 py-3 mb-4"
+              className="rounded-xl border px-3 py-3 mb-4"
               style={{ backgroundColor: uiColors.warningBg, borderColor: uiColors.warningBorder }}
             >
               <Text className="text-sm leading-5" style={{ color: uiColors.warningText }}>
@@ -1322,7 +1322,7 @@ export default function App() {
             <>
               {!selectedAccount ? (
                 <View
-                  className="min-h-[132px] items-center justify-center rounded-[18px] border px-7"
+                  className="min-h-[132px] items-center justify-center rounded-xl border px-7"
                   style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
                 >
                   <Text className="text-center text-lg leading-7" style={{ color: uiColors.textMuted }}>
@@ -1331,14 +1331,14 @@ export default function App() {
                 </View>
               ) : positionsLoading ? (
                 <View
-                  className="min-h-[132px] items-center justify-center rounded-[18px] border px-7"
+                  className="min-h-[132px] items-center justify-center rounded-xl border px-7"
                   style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
                 >
                   <ActivityIndicator size="small" color={uiColors.textMuted} />
                 </View>
               ) : positions.length === 0 ? (
                 <View
-                  className="min-h-[132px] items-center justify-center rounded-[18px] border px-7"
+                  className="min-h-[132px] items-center justify-center rounded-xl border px-7"
                   style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
                 >
                   <Text className="text-center text-lg leading-7" style={{ color: uiColors.textMuted }}>
@@ -1392,7 +1392,7 @@ export default function App() {
             />
           ) : (
             <View
-              className="min-h-[132px] items-center justify-center rounded-[18px] border px-7"
+              className="min-h-[132px] items-center justify-center rounded-xl border px-7"
               style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
             >
               <Text className="text-center text-lg leading-7" style={{ color: uiColors.textMuted }}>

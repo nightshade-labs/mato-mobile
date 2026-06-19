@@ -439,18 +439,21 @@ interface ChartLegendItemProps {
 
 function ChartLegendItem({ color, dashed = false, label }: ChartLegendItemProps) {
   return (
-    <View className="flex-row items-center">
+    <View
+      className="flex-row items-center rounded-full border px-2 py-1"
+      style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
+    >
       <View
         className="mr-1.5"
         style={{
-          width: 14,
+          width: 18,
           borderTopWidth: dashed ? 1 : 2,
           borderTopColor: color,
           borderStyle: dashed ? 'dashed' : 'solid',
           opacity: 0.95,
         }}
       />
-      <Text className="text-[10px] leading-4" style={{ color: uiColors.textSubtle }}>
+      <Text className="text-[10px] font-medium leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
         {label}
       </Text>
     </View>
@@ -548,9 +551,9 @@ const ClosedPositionRow = memo(function ClosedPositionRow({
 
         <View className="mt-3 pt-3 border-t" style={{ borderTopColor: uiColors.divider }}>
           {showChartSection && hasChart && (
-            <View className="flex-row items-center justify-end mb-2">
-              <ChartLegendItem color={uiColors.primary} label="Price" />
-              <View className="w-3" />
+            <View className="flex-row flex-wrap items-center mb-2">
+              <ChartLegendItem color={uiColors.primary} label="Price path" />
+              <View className="w-2" />
               <ChartLegendItem color={averageLineColor} dashed label="Avg fill" />
             </View>
           )}
