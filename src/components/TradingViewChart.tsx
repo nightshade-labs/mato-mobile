@@ -8,6 +8,8 @@ const CHART_BORDER_RADIUS = 12;
 
 export interface TradingViewCandle {
   time: number;
+  startSlot?: number;
+  endSlot?: number;
   open: number;
   high: number;
   low: number;
@@ -24,8 +26,19 @@ export interface TradingViewCrosshairData {
   volume: number | null;
 }
 
+export interface TradingViewPositionOverlay {
+  averagePrice: number;
+  endTime: number;
+  id: string;
+  label: string;
+  side: 'buy' | 'sell';
+  startTime: number;
+  status: 'active' | 'closed';
+}
+
 interface TradingViewChartProps {
   data: TradingViewCandle[];
+  positionOverlays?: TradingViewPositionOverlay[];
   lastCandle?: TradingViewCandle | null;
   onCrosshairMove?: (point: TradingViewCrosshairData | null) => void;
   onRequestMoreHistory?: () => void;
@@ -44,6 +57,7 @@ type WebViewInboundMessage =
 
 export function TradingViewChart({
   data,
+  positionOverlays = [],
   lastCandle = null,
   onCrosshairMove,
   onRequestMoreHistory,
@@ -88,6 +102,17 @@ export function TradingViewChart({
       }),
     );
   }, [chartWidth, data, isReady]);
+
+  useEffect(() => {
+    if (!isReady || !webViewRef.current || chartWidth <= 0) return;
+
+    webViewRef.current.postMessage(
+      JSON.stringify({
+        type: 'POSITION_OVERLAYS',
+        overlays: JSON.stringify(positionOverlays),
+      }),
+    );
+  }, [chartWidth, isReady, positionOverlays]);
 
   useEffect(() => {
     if (!isReady || !webViewRef.current) return;

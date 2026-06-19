@@ -34,7 +34,11 @@ import { PercentageSlider } from '../components/PercentageSlider';
 import { ClosedPositionsList } from '../components/ClosedPositionsList';
 import { ActivePositionCard } from '../components/ActivePositionCard';
 import { CandleChart } from '../components/CandleChart';
-import { TradingViewChart } from '../components/TradingViewChart';
+import {
+  TradingViewChart,
+  type TradingViewCandle,
+  type TradingViewPositionOverlay,
+} from '../components/TradingViewChart';
 import { OrderBookTable } from '../components/OrderBookTable';
 import { ChartCandlestickIcon, ListOrderedIcon, RefreshIcon, XIcon } from '../components/NativeIcons';
 import { clampPage, getPageCount, getPageItems, PositionPagination } from '../components/PositionPagination';
@@ -53,6 +57,7 @@ import {
   MAX_BATCH_CLOSE_POSITIONS_PER_TRANSACTION,
   MIN_TRADE_AMOUNT_ATOMS,
   NATIVE_FEE_BUFFER_ATOMS,
+  SLOT_DURATION_MS,
   SLOT_DURATION_SECONDS,
 } from '../utils/constants';
 import type { ChartTimeframe, MarketPanelTab, OrderSide, PositionPanelTab } from '../utils/constants';
@@ -69,6 +74,8 @@ const MARKET = resolver.marketPda(new BN(MARKET_ID));
 const MIN_DURATION_SECONDS = 1 * 60;
 const MAX_DURATION_SECONDS = 365 * 24 * 60 * 60;
 const PRECISION_FACTOR = 1000000000;
+const BOOKKEEPING_PRECISION_FACTOR = 1_000_000_000_000_000n;
+const FLOW_PRECISION_FACTOR = 1_000_000_000n;
 
 const ENABLE_ADVANCED_CHART = process.env.EXPO_PUBLIC_ENABLE_ADVANCED_CHART !== 'false';
 const CHART_TIMEFRAME_STORAGE_KEY = 'mato_mobile_chart_timeframe';
@@ -154,6 +161,78 @@ function atomsFromPercent(availableAtoms: bigint, percent: number): bigint {
 
 function durationToSlots(seconds: number): number {
   return Math.max(1, Math.round(seconds / SLOT_DURATION_SECONDS));
+}
+
+function clampToRange(value: number, min: number, max: number): number {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
+function toNumber(value: { toString(): string }): number {
+  return Number(value.toString());
+}
+
+function computeUnitPrice(
+  quoteAtoms: bigint,
+  quoteDecimals: number,
+  baseAtoms: bigint,
+  baseDecimals: number,
+): number | null {
+  if (baseAtoms <= 0n) return null;
+  const quoteUi = Number(quoteAtoms) / 10 ** quoteDecimals;
+  const baseUi = Number(baseAtoms) / 10 ** baseDecimals;
+  if (!Number.isFinite(quoteUi) || !Number.isFinite(baseUi) || baseUi <= 0) return null;
+  const price = quoteUi / baseUi;
+  return Number.isFinite(price) && price > 0 ? price : null;
+}
+
+function estimateTimeMsForSlot(candles: TradingViewCandle[], slot: number, intervalMs: number): number | null {
+  const anchors = candles
+    .flatMap((candle) => {
+      const startSlot = typeof candle.startSlot === 'number' ? candle.startSlot : null;
+      const endSlot = typeof candle.endSlot === 'number' ? candle.endSlot : null;
+      const startTimeMs = candle.time * 1000;
+      const entries: { slot: number; timeMs: number }[] = [];
+      if (startSlot !== null) entries.push({ slot: startSlot, timeMs: startTimeMs });
+      if (endSlot !== null) entries.push({ slot: endSlot, timeMs: startTimeMs + Math.max(0, intervalMs - 1) });
+      return entries;
+    })
+    .filter((anchor) => Number.isFinite(anchor.slot) && Number.isFinite(anchor.timeMs) && anchor.timeMs > 0)
+    .sort((left, right) => left.slot - right.slot);
+
+  if (!Number.isFinite(slot) || anchors.length === 0) return null;
+  const normalizedSlot = Math.floor(slot);
+  const upperIndex = anchors.findIndex((anchor) => anchor.slot >= normalizedSlot);
+
+  if (upperIndex >= 0 && anchors[upperIndex].slot === normalizedSlot) {
+    return anchors[upperIndex].timeMs;
+  }
+
+  const estimateDuration = (left: { slot: number; timeMs: number }, right: { slot: number; timeMs: number }) => {
+    const slotDelta = right.slot - left.slot;
+    if (slotDelta === 0) return SLOT_DURATION_MS;
+    const duration = (right.timeMs - left.timeMs) / slotDelta;
+    return Number.isFinite(duration) && duration > 0 ? duration : SLOT_DURATION_MS;
+  };
+
+  if (upperIndex < 0) {
+    const last = anchors[anchors.length - 1];
+    const previous = anchors[anchors.length - 2];
+    const duration = previous ? estimateDuration(previous, last) : SLOT_DURATION_MS;
+    return last.timeMs + (normalizedSlot - last.slot) * duration;
+  }
+
+  if (upperIndex > 0) {
+    const lower = anchors[upperIndex - 1];
+    const upper = anchors[upperIndex];
+    return lower.timeMs + (normalizedSlot - lower.slot) * estimateDuration(lower, upper);
+  }
+
+  const upper = anchors[upperIndex];
+  const next = anchors[upperIndex + 1];
+  const duration = next ? estimateDuration(upper, next) : SLOT_DURATION_MS;
+  return upper.timeMs - (upper.slot - normalizedSlot) * duration;
 }
 
 function explorerTransactionUrl(signature: string): string {
@@ -356,6 +435,91 @@ export default function App() {
       }),
     [currentSlot, positions],
   );
+  const activeChartPositionOverlays = useMemo<TradingViewPositionOverlay[]>(() => {
+    if (!config || tradingViewCandles.length === 0) return [];
+    const timeframe = CHART_TIMEFRAMES.find((option) => option.label === chartTimeframe);
+    const intervalMs = timeframe?.intervalMs ?? 60_000;
+
+    return activePositionsNewestFirst.flatMap((position): TradingViewPositionOverlay[] => {
+      const amountAtoms = BigInt(position.amount.toString());
+      if (amountAtoms <= 0n) return [];
+
+      const isBuy = position.isBuy;
+      const depositedToken = isBuy ? quoteTicker : baseTicker;
+      const depositedDecimals = isBuy ? quoteDecimals : baseDecimals;
+      const startSlot = toNumber(position.startSlot);
+      const endSlot = toNumber(position.endSlot);
+      if (!Number.isFinite(startSlot) || !Number.isFinite(endSlot)) return [];
+
+      const durationSlots = Math.max(1, endSlot - startSlot);
+      const currentLineSlot = currentSlot === null ? endSlot : Math.min(Math.max(currentSlot, startSlot), endSlot);
+      const startTimeMs = estimateTimeMsForSlot(tradingViewCandles, startSlot, intervalMs);
+      const endTimeMs = estimateTimeMsForSlot(tradingViewCandles, currentLineSlot, intervalMs);
+      if (startTimeMs === null || endTimeMs === null) return [];
+
+      const scaledFlowAtomsPerSlot = (amountAtoms * FLOW_PRECISION_FACTOR) / BigInt(durationSlots);
+      const currentProgressSlot = currentSlot === null ? startSlot : clampToRange(currentSlot, startSlot, endSlot);
+      const elapsedSlots = clampToRange(currentProgressSlot - startSlot, 0, durationSlots);
+      const scaledConsumedAtoms = BigInt(elapsedSlots) * scaledFlowAtomsPerSlot;
+      const consumedAtoms = scaledConsumedAtoms / FLOW_PRECISION_FACTOR;
+
+      let averagePrice = displayPrice;
+      if (streamingState && consumedAtoms > 0n) {
+        const bookkeepingSnapshot = BigInt(position.bookkeepingSnapshot.toString());
+        const liveBookkeeping = isBuy ? streamingState.bookkeepingBasePerQuote : streamingState.bookkeepingQuotePerBase;
+        const liveBookkeepingDelta = liveBookkeeping > bookkeepingSnapshot ? liveBookkeeping - bookkeepingSnapshot : 0n;
+        let staleAccumulator = 0n;
+        const staleSlots = Math.max(0, currentProgressSlot - streamingState.bookkeepingLastUpdateSlot);
+
+        if (staleSlots > 0) {
+          const staleSlotCount = BigInt(staleSlots);
+          if (isBuy && streamingState.marketQuoteFlow > 0n) {
+            staleAccumulator =
+              (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketBaseFlow * staleSlotCount) /
+              streamingState.marketQuoteFlow;
+          } else if (!isBuy && streamingState.marketBaseFlow > 0n) {
+            staleAccumulator =
+              (BOOKKEEPING_PRECISION_FACTOR * streamingState.marketQuoteFlow * staleSlotCount) /
+              streamingState.marketBaseFlow;
+          }
+        }
+
+        const liveAccumulatedPrice = liveBookkeepingDelta + staleAccumulator;
+        const swappedEstimateAtoms =
+          (scaledFlowAtomsPerSlot * liveAccumulatedPrice) / (FLOW_PRECISION_FACTOR * BOOKKEEPING_PRECISION_FACTOR);
+        const computedAverage = isBuy
+          ? computeUnitPrice(consumedAtoms, quoteDecimals, swappedEstimateAtoms, baseDecimals)
+          : computeUnitPrice(swappedEstimateAtoms, quoteDecimals, consumedAtoms, baseDecimals);
+        averagePrice = computedAverage ?? averagePrice;
+      }
+
+      if (averagePrice === null || !Number.isFinite(averagePrice) || averagePrice <= 0) return [];
+
+      return [
+        {
+          averagePrice,
+          endTime: Math.floor(endTimeMs / 1000),
+          id: `active-${position.publicKey.toBase58()}`,
+          label: `${isBuy ? 'Buy' : 'Sell'} ${formatAtoms(amountAtoms, depositedDecimals)} ${depositedToken}`,
+          side: isBuy ? 'buy' : 'sell',
+          startTime: Math.floor(startTimeMs / 1000),
+          status: currentSlot === null || currentSlot < endSlot ? 'active' : 'closed',
+        },
+      ];
+    });
+  }, [
+    activePositionsNewestFirst,
+    baseDecimals,
+    baseTicker,
+    chartTimeframe,
+    config,
+    currentSlot,
+    displayPrice,
+    quoteDecimals,
+    quoteTicker,
+    streamingState,
+    tradingViewCandles,
+  ]);
 
   const priceImpactPercent = useMemo(() => {
     if (!amountAtoms || amountAtoms <= 0n || !streamingState) return null;
@@ -905,6 +1069,7 @@ export default function App() {
                         {ENABLE_ADVANCED_CHART ? (
                           <TradingViewChart
                             data={tradingViewCandles}
+                            positionOverlays={activeChartPositionOverlays}
                             lastCandle={latestTradingViewCandle}
                             onRequestMoreHistory={handleLoadMoreMarketHistory}
                             resetSignal={chartResetSignal}

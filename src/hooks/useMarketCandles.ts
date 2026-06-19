@@ -105,21 +105,17 @@ function toChartCandles(items: ReadApiCandleItem[]): TCandle[] {
 function toTradingViewCandles(items: ReadApiCandleItem[]): TradingViewAggregatedCandle[] {
   return items.map((item) => ({
     close: item.close,
+    endSlot: item.end_slot,
     high: item.high,
     low: item.low,
     open: item.open,
+    startSlot: item.start_slot,
     time: item.time,
     volume: item.volume,
   }));
 }
 
-export function useMarketCandles({
-  marketId,
-  timeframe,
-}: {
-  marketId: number;
-  timeframe: MarketChartTimeframe;
-}) {
+export function useMarketCandles({ marketId, timeframe }: { marketId: number; timeframe: MarketChartTimeframe }) {
   const interval = useMemo(() => timeframeToInterval(timeframe), [timeframe]);
   const intervalMs = useMemo(() => timeframeToIntervalMs(timeframe), [timeframe]);
   const [rangeStartMs, setRangeStartMs] = useState(0);
@@ -193,10 +189,7 @@ export function useMarketCandles({
       return;
     }
 
-    const extendByBars = Math.min(
-      LOAD_MORE_BARS_BY_TIMEFRAME[timeframe],
-      remainingBarsBudget,
-    );
+    const extendByBars = Math.min(LOAD_MORE_BARS_BY_TIMEFRAME[timeframe], remainingBarsBudget);
     if (extendByBars <= 0) {
       setHasMoreHistory(false);
       return;

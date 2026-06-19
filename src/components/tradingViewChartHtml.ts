@@ -21,11 +21,49 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
     #chart-container {
+      position: relative;
       width: ${chartWidth}px;
       height: ${chartHeight}px;
       background: ${uiColors.chartBackground};
       border-radius: 12px;
       overflow: hidden;
+    }
+    #position-overlay {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .position-badge {
+      position: absolute;
+      align-items: center;
+      border-radius: 999px;
+      border-style: solid;
+      border-width: 1px;
+      box-shadow: 0 8px 24px -16px rgba(0, 0, 0, 0.9);
+      display: flex;
+      font-size: 11px;
+      font-weight: 700;
+      height: 24px;
+      justify-content: center;
+      line-height: 24px;
+      max-width: 148px;
+      min-width: 54px;
+      overflow: hidden;
+      padding: 0 8px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .position-badge-buy {
+      background: rgba(31, 215, 154, 0.9);
+      border-color: rgba(31, 215, 154, 0.62);
+      color: ${uiColors.background};
+    }
+    .position-badge-sell {
+      background: rgba(212, 36, 58, 0.9);
+      border-color: rgba(212, 36, 58, 0.62);
+      color: ${uiColors.primaryText};
     }
     #loading {
       position: absolute;
@@ -40,6 +78,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
 <body>
   <div id="chart-container">
     <div id="loading">Loading chart...</div>
+    <div id="position-overlay"></div>
   </div>
   <script>
     (function() {
@@ -52,6 +91,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
       var currentDataLength = 0;
       var currentFirstTime = null;
       var currentLastTime = null;
+      var positionOverlays = [];
       var HISTORY_LOAD_THRESHOLD_BARS = 20;
       var HISTORY_REQUEST_DEBOUNCE_MS = 600;
       var PRICE_SCALE_TOUCH_WIDTH_PX = 80;
@@ -79,6 +119,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
       };
       var container = document.getElementById('chart-container');
       var loadingEl = document.getElementById('loading');
+      var positionOverlayEl = document.getElementById('position-overlay');
 
       function postToRN(payload) {
         if (window.ReactNativeWebView) {
@@ -190,6 +231,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
           },
         });
         chart.timeScale().fitContent();
+        requestRenderPositionOverlays();
       }
 
       function handleTouchEnd() {
@@ -202,6 +244,129 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
         container.addEventListener('touchmove', handleTouchMove, { passive: false });
         container.addEventListener('touchend', handleTouchEnd, { passive: true });
         container.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+      }
+
+      function estimateBadgeWidth(label) {
+        return Math.min(148, Math.max(54, String(label || '').length * 6.2 + 20));
+      }
+
+      function stackPositionBadges(projected, bounds) {
+        var occupied = [];
+        projected
+          .filter(function(overlay) { return overlay.showBadge; })
+          .sort(function(left, right) {
+            if (Math.abs(left.badgeAnchorX - right.badgeAnchorX) < 1) return left.y - right.y;
+            return left.badgeAnchorX - right.badgeAnchorX;
+          })
+          .forEach(function(overlay) {
+            var width = estimateBadgeWidth(overlay.label);
+            var left = Math.min(Math.max(overlay.badgeAnchorX - width / 2, 4), Math.max(4, bounds.width - width - 4));
+            var preferredTop = Math.max(overlay.y - 38, 4);
+            var top = preferredTop;
+
+            for (var index = 0; index < occupied.length; index += 1) {
+              var box = occupied[index];
+              var overlaps = !(left + width < box.left || left > box.right || top + 24 < box.top || top > box.bottom);
+              if (overlaps) {
+                top = Math.max(top, box.bottom + 4);
+              }
+            }
+
+            top = Math.min(Math.max(top, 4), Math.max(4, bounds.height - 28));
+            overlay.badgeLeft = left;
+            overlay.badgeTop = top;
+            overlay.badgeWidth = width;
+            occupied.push({ left: left, right: left + width, top: top, bottom: top + 24 });
+          });
+
+        return projected;
+      }
+
+      function renderPositionOverlays() {
+        if (!positionOverlayEl) return;
+        positionOverlayEl.innerHTML = '';
+        if (!chart || !candleSeries || !positionOverlays || positionOverlays.length === 0) return;
+
+        var rect = container.getBoundingClientRect();
+        var bounds = { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
+        var timeScale = chart.timeScale();
+        var projected = [];
+
+        for (var index = 0; index < positionOverlays.length; index += 1) {
+          var overlay = positionOverlays[index];
+          var startX = timeScale.timeToCoordinate(Number(overlay.startTime));
+          var endX = timeScale.timeToCoordinate(Number(overlay.endTime));
+          var y = candleSeries.priceToCoordinate(Number(overlay.averagePrice));
+          if (startX === null || endX === null || y === null) continue;
+          if (!Number.isFinite(startX) || !Number.isFinite(endX) || !Number.isFinite(y)) continue;
+
+          var rawLineEndX = endX <= startX ? startX + 8 : endX;
+          var minLineX = Math.min(startX, rawLineEndX);
+          var maxLineX = Math.max(startX, rawLineEndX);
+          if (maxLineX < 0 || minLineX > bounds.width || y < 0 || y > bounds.height) continue;
+
+          projected.push({
+            averagePrice: overlay.averagePrice,
+            badgeAnchorX: startX,
+            badgeLeft: 0,
+            badgeTop: 0,
+            badgeWidth: 0,
+            endX: Math.min(Math.max(rawLineEndX, 0), bounds.width),
+            id: overlay.id,
+            label: overlay.label,
+            lineColor: overlay.side === 'buy' ? '${uiColors.buy}' : '${uiColors.sell}',
+            showBadge: startX >= 0 && startX <= bounds.width,
+            side: overlay.side,
+            startX: Math.min(Math.max(startX, 0), bounds.width),
+            status: overlay.status,
+            y: y,
+          });
+        }
+
+        projected = stackPositionBadges(projected, bounds);
+        if (projected.length === 0) return;
+
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', String(bounds.width));
+        svg.setAttribute('height', String(bounds.height));
+        svg.style.position = 'absolute';
+        svg.style.inset = '0';
+
+        projected.forEach(function(overlay) {
+          var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', String(overlay.startX));
+          line.setAttribute('x2', String(overlay.endX));
+          line.setAttribute('y1', String(overlay.y));
+          line.setAttribute('y2', String(overlay.y));
+          line.setAttribute('stroke', overlay.lineColor);
+          line.setAttribute('stroke-linecap', 'round');
+          line.setAttribute('stroke-width', '2');
+          if (overlay.status === 'active') {
+            line.setAttribute('stroke-dasharray', '5 4');
+          }
+          svg.appendChild(line);
+        });
+        positionOverlayEl.appendChild(svg);
+
+        projected
+          .filter(function(overlay) { return overlay.showBadge; })
+          .forEach(function(overlay) {
+            var badge = document.createElement('div');
+            badge.className = 'position-badge ' + (overlay.side === 'buy' ? 'position-badge-buy' : 'position-badge-sell');
+            badge.textContent = overlay.label;
+            badge.style.left = overlay.badgeLeft + 'px';
+            badge.style.top = overlay.badgeTop + 'px';
+            badge.style.width = overlay.badgeWidth + 'px';
+            positionOverlayEl.appendChild(badge);
+          });
+      }
+
+      function requestRenderPositionOverlays() {
+        if (typeof window.requestAnimationFrame === 'function') {
+          window.requestAnimationFrame(renderPositionOverlays);
+          return;
+        }
+        setTimeout(renderPositionOverlays, 0);
       }
 
       function initChart() {
@@ -325,6 +490,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
 
           chart.timeScale().subscribeVisibleLogicalRangeChange(function(range) {
             maybeRequestMoreHistory(range);
+            requestRenderPositionOverlays();
           });
           registerTouchHandlers();
 
@@ -409,6 +575,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
           }
 
           hasInitialData = true;
+          requestRenderPositionOverlays();
         } catch (e) {
           postToRN({
             type: 'CHART_ERROR',
@@ -438,6 +605,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
               color: isUp ? 'rgba(44, 203, 115, 0.4)' : 'rgba(242, 85, 101, 0.4)',
             });
           }
+          requestRenderPositionOverlays();
         } catch (_) {}
       }
 
@@ -456,7 +624,18 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
               entireTextOnly: true,
             },
           });
+          requestRenderPositionOverlays();
         } catch (_) {}
+      }
+
+      function handlePositionOverlays(data) {
+        try {
+          positionOverlays = JSON.parse(data.overlays || '[]');
+          requestRenderPositionOverlays();
+        } catch (_) {
+          positionOverlays = [];
+          requestRenderPositionOverlays();
+        }
       }
 
       function handleHistoryStatus(data) {
@@ -480,6 +659,9 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
               break;
             case 'HISTORY_STATUS':
               handleHistoryStatus(message);
+              break;
+            case 'POSITION_OVERLAYS':
+              handlePositionOverlays(message);
               break;
             case 'RESET_VIEW':
               resetView();
