@@ -35,7 +35,6 @@ import { ClosedPositionsList } from '../components/ClosedPositionsList';
 import { ActivePositionCard } from '../components/ActivePositionCard';
 import { CandleChart } from '../components/CandleChart';
 import { TradingViewChart } from '../components/TradingViewChart';
-import type { TradingViewCrosshairData } from '../components/TradingViewChart';
 import { OrderBookTable } from '../components/OrderBookTable';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import type { MarketConfigRow } from '../integrations/supabase/types';
@@ -63,6 +62,7 @@ import {
   selectBatchClosePositions,
 } from '../utils/trading';
 import { uiColors } from '../theme/colors';
+import { BlurView } from 'expo-blur';
 
 const MARKET = resolver.marketPda(new BN(MARKET_ID));
 const MIN_DURATION_SECONDS = 1 * 60;
@@ -125,22 +125,6 @@ function marketPriceFromFlows(
   const price = Math.abs(quote) / Math.abs(base);
   if (!Number.isFinite(price) || price <= 0) return null;
   return price;
-}
-
-function formatCrosshairTimeLabel(value: number | string | null): string | null {
-  if (value === null) return null;
-  const numeric = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(numeric)) return null;
-  const date = new Date(numeric * 1000);
-  if (Number.isNaN(date.getTime())) return null;
-
-  return date.toLocaleString('en-US', {
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
 }
 
 function sanitizeAmountInput(raw: string): string {
@@ -212,7 +196,6 @@ export default function App() {
   const [positionPanelTab, setPositionPanelTab] = useState<PositionPanelTab>('active');
   const [chartTimeframe, setChartTimeframe] = useState<ChartTimeframe>('1h');
   const [chartResetSignal, setChartResetSignal] = useState(0);
-  const [crosshairData, setCrosshairData] = useState<TradingViewCrosshairData | null>(null);
   const [isChartTimeframeReady, setIsChartTimeframeReady] = useState(false);
   const [isSwitchingTimeframe, setIsSwitchingTimeframe] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -474,31 +457,6 @@ export default function App() {
                   ? 'Review price impact'
                   : `Submit ${side === 'buy' ? 'Buy' : 'Sell'} Order`;
 
-  const activeOhlcv = useMemo(() => {
-    if (crosshairData) {
-      return {
-        time: crosshairData.time,
-        open: crosshairData.open,
-        high: crosshairData.high,
-        low: crosshairData.low,
-        close: crosshairData.close,
-        volume: crosshairData.volume,
-      };
-    }
-    if (latestTradingViewCandle) {
-      return {
-        time: latestTradingViewCandle.time,
-        open: latestTradingViewCandle.open,
-        high: latestTradingViewCandle.high,
-        low: latestTradingViewCandle.low,
-        close: latestTradingViewCandle.close,
-        volume: latestTradingViewCandle.volume,
-      };
-    }
-    return null;
-  }, [crosshairData, latestTradingViewCandle]);
-  const activeOhlcvTimeLabel = useMemo(() => formatCrosshairTimeLabel(activeOhlcv?.time ?? null), [activeOhlcv]);
-
   useEffect(() => {
     let mounted = true;
     const restoreChartTimeframe = async () => {
@@ -528,7 +486,6 @@ export default function App() {
   }, [chartTimeframe, isChartTimeframeReady]);
 
   useEffect(() => {
-    setCrosshairData(null);
     if (!isChartTimeframeReady) return;
     setIsSwitchingTimeframe(true);
     const timeout = setTimeout(() => setIsSwitchingTimeframe(false), 220);
@@ -567,7 +524,6 @@ export default function App() {
 
   const handleResetChartView = useCallback(() => {
     setChartResetSignal((previous) => previous + 1);
-    setCrosshairData(null);
   }, []);
 
   const handleLoadMoreMarketHistory = useCallback(() => {
@@ -738,7 +694,11 @@ export default function App() {
         style={{ backgroundColor: uiColors.background, borderBottomColor: uiColors.divider }}
       >
         <View className="mb-3 flex-row items-center justify-between">
-          <Image source={require('../../assets/icon.png')} style={{ width: 48, height: 48 }} resizeMode="contain" />
+          <Image
+            source={require('../../assets/mato-icon.png')}
+            style={{ width: 48, height: 48 }}
+            resizeMode="contain"
+          />
           <View className="flex-row items-center">
             {selectedAccount ? (
               <Text className="text-[11px] font-medium mr-3" style={{ color: uiColors.textMuted }}>
@@ -847,6 +807,7 @@ export default function App() {
           visible={isMarketPanelOpen}
         >
           <View className="flex-1 justify-end" style={{ backgroundColor: uiColors.overlay }}>
+            <BlurView intensity={28} tint="dark" className="absolute inset-0" />
             <Pressable className="flex-1" onPress={() => setIsMarketPanelOpen(false)} />
             <View
               className="rounded-t-xl border px-4 pt-3 pb-5"
@@ -925,109 +886,44 @@ export default function App() {
 
                 {marketPanelTab === 'chart' && (
                   <>
-                    <View className="flex-row items-center justify-between mb-3 px-4">
+                    <View className="flex-row items-center justify-between mb-3">
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-1 mr-3">
-                        <View className="flex-row items-end">
-                          {CHART_TIMEFRAMES.map((option) => (
-                            <Pressable
-                              key={option.label}
-                              onPress={() => handleTimeframeChange(option.label)}
-                              className="px-2 pb-1.5 mr-3 border-b"
-                              style={{
-                                borderBottomColor: option.label === chartTimeframe ? uiColors.primary : 'transparent',
-                              }}
-                            >
-                              <Text
-                                className="text-[15px] font-medium leading-5"
+                        <View className="flex-row">
+                          {CHART_TIMEFRAMES.map((option) => {
+                            const isActive = option.label === chartTimeframe;
+                            return (
+                              <Pressable
+                                key={option.label}
+                                onPress={() => handleTimeframeChange(option.label)}
+                                className="rounded-full border px-3.5 py-2 mr-2"
                                 style={{
-                                  color: option.label === chartTimeframe ? uiColors.primaryText : uiColors.textMuted,
+                                  backgroundColor: isActive ? uiColors.primary : uiColors.panelSoft,
+                                  borderColor: isActive ? uiColors.primaryPress : uiColors.border,
                                 }}
                               >
-                                {option.label}
-                              </Text>
-                            </Pressable>
-                          ))}
+                                <Text
+                                  className="text-sm font-semibold leading-5"
+                                  style={{ color: isActive ? uiColors.primaryText : uiColors.textMuted }}
+                                >
+                                  {option.label}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
                         </View>
                       </ScrollView>
                       {ENABLE_ADVANCED_CHART && (
                         <Pressable
                           onPress={handleResetChartView}
-                          className="px-3 py-1.5 border"
-                          style={{ borderColor: uiColors.divider }}
+                          className="rounded-full border px-3.5 py-2"
+                          style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
                         >
-                          <Text
-                            className="text-xs font-semibold tracking-wide"
-                            style={{ color: uiColors.textSecondary }}
-                          >
+                          <Text className="text-sm font-semibold leading-5" style={{ color: uiColors.textSecondary }}>
                             Reset
                           </Text>
                         </Pressable>
                       )}
                     </View>
-
-                    {activeOhlcv && (
-                      <View
-                        className="mb-3 border-y py-2 px-4"
-                        style={{ borderTopColor: uiColors.divider, borderBottomColor: uiColors.divider }}
-                      >
-                        <View className="flex-row justify-between">
-                          <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
-                            O{' '}
-                            <Text
-                              className="text-xs font-semibold leading-5"
-                              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                            >
-                              {activeOhlcv.open.toFixed(2)}
-                            </Text>
-                          </Text>
-                          <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
-                            H{' '}
-                            <Text
-                              className="text-xs font-semibold leading-5"
-                              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                            >
-                              {activeOhlcv.high.toFixed(2)}
-                            </Text>
-                          </Text>
-                          <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
-                            L{' '}
-                            <Text
-                              className="text-xs font-semibold leading-5"
-                              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                            >
-                              {activeOhlcv.low.toFixed(2)}
-                            </Text>
-                          </Text>
-                          <Text className="text-[11px] leading-5" style={{ color: uiColors.textSubtle }}>
-                            C{' '}
-                            <Text
-                              className="text-xs font-semibold leading-5"
-                              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                            >
-                              {activeOhlcv.close.toFixed(2)}
-                            </Text>
-                          </Text>
-                          <Text
-                            className="text-[11px] leading-5"
-                            style={{ color: uiColors.textSubtle }}
-                            numberOfLines={1}
-                          >
-                            V{' '}
-                            <Text
-                              className="text-xs font-semibold leading-5"
-                              style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                            >
-                              {activeOhlcv.volume === null ? '—' : formatCompactNumber(activeOhlcv.volume)}
-                            </Text>
-                          </Text>
-                        </View>
-                        {activeOhlcvTimeLabel && (
-                          <Text className="text-[11px] mt-1 leading-4" style={{ color: uiColors.textSubtle }}>
-                            {activeOhlcvTimeLabel}
-                          </Text>
-                        )}
-                      </View>
-                    )}
 
                     {!isChartTimeframeReady ? (
                       <ActivityIndicator size="small" color={uiColors.textMuted} />
@@ -1043,7 +939,6 @@ export default function App() {
                           <TradingViewChart
                             data={tradingViewCandles}
                             lastCandle={latestTradingViewCandle}
-                            onCrosshairMove={setCrosshairData}
                             onRequestMoreHistory={handleLoadMoreMarketHistory}
                             resetSignal={chartResetSignal}
                             hasMoreHistory={hasMoreHistory}
@@ -1078,7 +973,6 @@ export default function App() {
                       positions={orderBookPositions.positions}
                       quoteDecimals={quoteDecimals}
                       quoteTicker={quoteTicker}
-                      streamingState={streamingState}
                     />
                     {orderBookPositions.error && (
                       <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.dangerText }}>
