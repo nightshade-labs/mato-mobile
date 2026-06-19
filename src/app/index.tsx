@@ -29,6 +29,7 @@ import { useClosePosition } from '../hooks/useClosePosition';
 import { useStreamingMarketState } from '../hooks/useStreamingMarketState';
 import { useMarketCandles } from '../hooks/useMarketCandles';
 import { useMarketUpdates } from '../integrations/supabase/useMarketUpdates';
+import { useClosePositionEvents } from '../integrations/supabase/useClosePositionEvents';
 import { ConnectButton } from '../components/ConnectButton';
 import { PercentageSlider } from '../components/PercentageSlider';
 import { ClosedPositionsList } from '../components/ClosedPositionsList';
@@ -81,6 +82,7 @@ const FLOW_PRECISION_FACTOR = 1_000_000_000n;
 const ENABLE_ADVANCED_CHART = process.env.EXPO_PUBLIC_ENABLE_ADVANCED_CHART !== 'false';
 const CHART_TIMEFRAME_STORAGE_KEY = 'mato_mobile_chart_timeframe';
 const POSITION_PAGE_SIZE = 10;
+const CHART_POSITION_CLOSED_LIMIT = 1000;
 
 const TABULAR_NUMS: TextStyle = { fontVariant: ['tabular-nums'] };
 const OVERLINE: TextStyle = { textTransform: 'uppercase', letterSpacing: 0.8 };
@@ -275,6 +277,11 @@ export default function App() {
   const [isChartTimeframeReady, setIsChartTimeframeReady] = useState(false);
   const [isSwitchingTimeframe, setIsSwitchingTimeframe] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const { events: closedPositionEvents } = useClosePositionEvents({
+    positionAuthority,
+    marketId: MARKET_ID,
+    limit: CHART_POSITION_CLOSED_LIMIT,
+  });
 
   const baseMint = config?.base_mint ?? null;
   const quoteMint = config?.quote_mint ?? null;
@@ -437,12 +444,12 @@ export default function App() {
       }),
     [currentSlot, positions],
   );
-  const activeChartPositionOverlays = useMemo<TradingViewPositionOverlay[]>(() => {
+  const chartPositionOverlays = useMemo<TradingViewPositionOverlay[]>(() => {
     if (!config || tradingViewCandles.length === 0) return [];
     const timeframe = CHART_TIMEFRAMES.find((option) => option.label === chartTimeframe);
     const intervalMs = timeframe?.intervalMs ?? 60_000;
 
-    return activePositionsNewestFirst.flatMap((position): TradingViewPositionOverlay[] => {
+    const activeOverlays = activePositionsNewestFirst.flatMap((position): TradingViewPositionOverlay[] => {
       const amountAtoms = BigInt(position.amount.toString());
       if (amountAtoms <= 0n) return [];
 
@@ -509,11 +516,50 @@ export default function App() {
         },
       ];
     });
+
+    const closedOverlays = closedPositionEvents.flatMap((event): TradingViewPositionOverlay[] => {
+      if (event.start_slot === null || event.end_slot === null) return [];
+
+      const isBuy = event.is_buy === 1;
+      const depositToken = isBuy ? quoteTicker : baseTicker;
+      const depositDecimals = isBuy ? quoteDecimals : baseDecimals;
+      const consumedAtoms =
+        event.deposit_amount > event.remaining_amount ? event.deposit_amount - event.remaining_amount : 0n;
+      if (consumedAtoms <= 0n || event.swapped_amount <= 0n) return [];
+
+      const grossQuoteAtoms = isBuy ? consumedAtoms : event.swapped_amount;
+      const grossBaseAtoms = isBuy ? event.swapped_amount : consumedAtoms;
+      const averagePrice = computeUnitPrice(grossQuoteAtoms, quoteDecimals, grossBaseAtoms, baseDecimals);
+      if (averagePrice === null) return [];
+
+      const lineEndSlot = Math.min(event.end_slot, event.slot);
+      const startTimeMs = estimateTimeMsForSlot(tradingViewCandles, event.start_slot, intervalMs);
+      const endTimeMs = estimateTimeMsForSlot(tradingViewCandles, lineEndSlot, intervalMs);
+      if (startTimeMs === null || endTimeMs === null) return [];
+
+      return [
+        {
+          averagePrice,
+          endTime: Math.floor(endTimeMs / 1000),
+          id: `closed-${event.id}`,
+          label: `${isBuy ? 'Buy' : 'Sell'} ${formatAtoms(consumedAtoms, depositDecimals)} ${depositToken}`,
+          side: isBuy ? 'buy' : 'sell',
+          startTime: Math.floor(startTimeMs / 1000),
+          status: 'closed',
+        },
+      ];
+    });
+
+    return [...activeOverlays, ...closedOverlays].sort((left, right) => {
+      if (left.startTime === right.startTime) return left.averagePrice - right.averagePrice;
+      return left.startTime - right.startTime;
+    });
   }, [
     activePositionsNewestFirst,
     baseDecimals,
     baseTicker,
     chartTimeframe,
+    closedPositionEvents,
     config,
     currentSlot,
     displayPrice,
@@ -1103,7 +1149,7 @@ export default function App() {
                           <TradingViewChart
                             data={tradingViewCandles}
                             displayMode={chartDisplayMode}
-                            positionOverlays={activeChartPositionOverlays}
+                            positionOverlays={chartPositionOverlays}
                             lastCandle={latestTradingViewCandle}
                             onRequestMoreHistory={handleLoadMoreMarketHistory}
                             resetSignal={chartResetSignal}
