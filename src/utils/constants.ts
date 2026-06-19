@@ -60,5 +60,5 @@ export const CHART_TIMEFRAMES = [
 
 export type ChartTimeframe = (typeof CHART_TIMEFRAMES)[number]['label'];
 export type OrderSide = 'buy' | 'sell';
-export type MarketPanelTab = 'chart' | 'orderBook' | 'trades';
+export type MarketPanelTab = 'chart' | 'orderBook';
 export type PositionPanelTab = 'active' | 'closed';

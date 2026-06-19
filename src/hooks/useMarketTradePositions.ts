@@ -4,6 +4,7 @@ import BN from 'bn.js';
 import { useProgram } from './useProgram';
 import { queryKeys } from '../query/keys';
 import type { TradePosition } from './useTradePositions';
+import { resolver } from '../utils/accountResolver';
 
 export function useMarketTradePositions(market: PublicKey | null) {
   const program = useProgram();
@@ -16,15 +17,20 @@ export function useMarketTradePositions(market: PublicKey | null) {
 
       const accounts = await program.account.tradePosition.all();
 
-      return accounts.map((a) => ({
-        publicKey: a.publicKey,
-        id: a.account.id as BN,
-        amount: a.account.amount as BN,
-        startSlot: a.account.startSlot as BN,
-        endSlot: a.account.endSlot as BN,
-        bookkeepingSnapshot: a.account.bookkeepingSnapshot as BN,
-        isBuy: a.account.isBuy === 1,
-      }));
+      return accounts
+        .map((a) => ({
+          publicKey: a.publicKey,
+          authority: a.account.authority as PublicKey,
+          id: a.account.id as BN,
+          amount: a.account.amount as BN,
+          startSlot: a.account.startSlot as BN,
+          endSlot: a.account.endSlot as BN,
+          bookkeepingSnapshot: a.account.bookkeepingSnapshot as BN,
+          isBuy: a.account.isBuy === 1,
+        }))
+        .filter((position) =>
+          resolver.tradePositionPda(market, position.authority, position.id).equals(position.publicKey),
+        );
     },
     refetchInterval: 20_000,
   });

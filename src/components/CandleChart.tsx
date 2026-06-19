@@ -11,19 +11,21 @@ interface CandleChartProps {
 
 export function CandleChart({ data, height = 300 }: CandleChartProps) {
   return (
-    <CandlestickChart.Provider data={data}>
-      <CandlestickChart height={height}>
-        <CandlestickChart.Candles positiveColor={uiColors.buy} negativeColor={uiColors.sell} />
-        <CandlestickChart.Crosshair>
-          <CandlestickChart.Tooltip />
-        </CandlestickChart.Crosshair>
-      </CandlestickChart>
-      <View
-        style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 4 }}
-      >
-        <CandlestickChart.PriceText style={{ color: uiColors.textSubtle, fontSize: 12 }} />
-        <CandlestickChart.DatetimeText style={{ color: uiColors.textSubtle, fontSize: 12 }} />
-      </View>
-    </CandlestickChart.Provider>
+    <View style={{ backgroundColor: uiColors.chartBackground, borderRadius: 12, overflow: 'hidden' }}>
+      <CandlestickChart.Provider data={data}>
+        <CandlestickChart height={height}>
+          <CandlestickChart.Candles positiveColor={uiColors.buy} negativeColor={uiColors.sell} />
+          <CandlestickChart.Crosshair>
+            <CandlestickChart.Tooltip />
+          </CandlestickChart.Crosshair>
+        </CandlestickChart>
+        <View
+          style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 4 }}
+        >
+          <CandlestickChart.PriceText style={{ color: uiColors.textSubtle, fontSize: 12 }} />
+          <CandlestickChart.DatetimeText style={{ color: uiColors.textSubtle, fontSize: 12 }} />
+        </View>
+      </CandlestickChart.Provider>
+    </View>
   );
 }

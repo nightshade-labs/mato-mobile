@@ -24,6 +24,8 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
       width: ${chartWidth}px;
       height: ${chartHeight}px;
       background: ${uiColors.chartBackground};
+      border-radius: 12px;
+      overflow: hidden;
     }
     #loading {
       position: absolute;
@@ -242,6 +244,8 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
               mouseWheel: false,
             },
             rightPriceScale: {
+              minimumWidth: 74,
+              entireTextOnly: true,
               borderColor: '${uiColors.chartGrid}',
               scaleMargins: {
                 top: basePriceScaleMargins.top,
@@ -275,6 +279,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
             wickDownColor: '${uiColors.sell}',
             priceLineVisible: true,
             lastValueVisible: true,
+            priceScaleId: 'right',
           });
 
           volumeSeries = chart.addHistogramSeries({
@@ -441,7 +446,16 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
         try {
           var width = parseInt(data.width, 10) || ${chartWidth};
           var height = parseInt(data.height, 10) || ${chartHeight};
-          chart.applyOptions({ width: width, height: height });
+          container.style.width = width + 'px';
+          container.style.height = height + 'px';
+          chart.applyOptions({
+            width: width,
+            height: height,
+            rightPriceScale: {
+              minimumWidth: 74,
+              entireTextOnly: true,
+            },
+          });
         } catch (_) {}
       }
 

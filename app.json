@@ -8,27 +8,27 @@
     },
     "name": "Mato",
     "slug": "Mato",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/mato-icon.png",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/mato-splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#07111F"
     },
     "android": {
       "package": "com.anonymous.kitexpouniwind",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/mato-adaptive-icon.png",
         "backgroundColor": "#07111F"
       },
       "splash": {
-        "image": "./assets/splash.png",
+        "image": "./assets/mato-splash.png",
         "resizeMode": "contain",
         "backgroundColor": "#07111F"
       }
     },
     "ios": {
       "splash": {
-        "image": "./assets/splash.png",
+        "image": "./assets/mato-splash.png",
         "resizeMode": "contain",
         "backgroundColor": "#07111F"
       }
