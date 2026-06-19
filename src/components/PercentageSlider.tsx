@@ -60,19 +60,14 @@ export function PercentageSlider({ value, onChange, disabled = false }: Percenta
     [disabled, emitFromPageX],
   );
 
-  const THUMB_SIZE = 24;
+  const THUMB_SIZE = 18;
   const thumbOffset = (clampedValue / 100) * Math.max(0, trackWidth - THUMB_SIZE);
 
   return (
-    <View
-      ref={trackRef}
-      onLayout={handleLayout}
-      className="h-11 justify-center"
-      {...panResponder.panHandlers}
-    >
-      <View className="h-2 rounded-full" style={{ backgroundColor: uiColors.divider }}>
+    <View ref={trackRef} onLayout={handleLayout} className="h-8 justify-center" {...panResponder.panHandlers}>
+      <View className="h-1.5 rounded-full" style={{ backgroundColor: uiColors.divider }}>
         <View
-          className="h-2 rounded-full"
+          className="h-1.5 rounded-full"
           style={{
             width: `${clampedValue}%`,
             backgroundColor: disabled ? uiColors.disabledBg : uiColors.primary,

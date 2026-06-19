@@ -418,6 +418,12 @@ export default function App() {
         : '↓ ';
   const executionPriceDisplay =
     executionPrice === null ? '—' : `${executionPriceArrow}$${formatUiAmount(executionPrice)}`;
+  const minimumAmountDisplay = formatAtoms(MIN_TRADE_AMOUNT_ATOMS, amountDecimals);
+  const amountValidationMessage = amountExceedsAvailable
+    ? 'Amount exceeds available balance.'
+    : amountBelowMinimum
+      ? `Minimum order size is ${minimumAmountDisplay} ${amountTokenTicker}.`
+      : null;
   const statusLabel =
     status === 'building'
       ? 'Building...'
@@ -974,234 +980,269 @@ export default function App() {
           </View>
         )}
 
-        <View className="px-4 pt-5 pb-4" style={{ backgroundColor: uiColors.surface }}>
-          <Text className="text-white text-xl font-semibold leading-7 tracking-tight mb-3">Create Order</Text>
-
+        <View className="mx-4 pt-5 pb-4">
           <View
-            className="flex-row rounded-xl p-1 mb-4"
-            style={{ backgroundColor: uiColors.panelSoft, borderWidth: 1, borderColor: uiColors.border }}
+            className="rounded-[22px] border px-4 py-5"
+            style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
           >
-            <Pressable
-              onPress={() => handleSideChange('buy')}
-              className="h-8 flex-1 rounded-lg items-center justify-center"
-              style={{ backgroundColor: side === 'buy' ? uiColors.primary : 'transparent' }}
+            <View
+              className="flex-row rounded-2xl border p-1 mb-5"
+              style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
             >
-              <Text
-                className="text-base font-semibold leading-5"
-                style={{ color: side === 'buy' ? uiColors.textPrimary : uiColors.textSubtle }}
-              >
-                Buy
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => handleSideChange('sell')}
-              className="h-8 flex-1 rounded-lg items-center justify-center"
-              style={{ backgroundColor: side === 'sell' ? uiColors.primary : 'transparent' }}
-            >
-              <Text
-                className="text-base font-semibold leading-5"
-                style={{ color: side === 'sell' ? uiColors.textPrimary : uiColors.textSubtle }}
-              >
-                Sell
-              </Text>
-            </Pressable>
-          </View>
-
-          <View className="mb-4 pb-4 border-b" style={{ borderBottomColor: uiColors.divider }}>
-            <Text
-              className="text-[10px] font-semibold mb-1 leading-4"
-              style={[{ color: uiColors.textSubtle }, OVERLINE]}
-            >
-              Available
-            </Text>
-            {selectedAccount && availableAmountLoading ? (
-              <ActivityIndicator size="small" color={uiColors.textMuted} />
-            ) : (
-              <Text className="text-white text-[24px] font-semibold leading-9 tracking-tight" style={TABULAR_NUMS}>
-                {formatUiAmount(availableAmountDisplay)} {amountTokenTicker}
-              </Text>
-            )}
-          </View>
-
-          <View className="mb-4 pb-4 border-b" style={{ borderBottomColor: uiColors.divider }}>
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-[10px] font-semibold leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
-                Order size ({amountTokenTicker})
-              </Text>
               <Pressable
-                onPress={() => handleSliderChange(100)}
-                disabled={!availableAmountAtoms || availableAmountAtoms <= 0n}
-                className="h-6 rounded-full px-2 items-center justify-center"
-                style={{
-                  backgroundColor:
-                    !availableAmountAtoms || availableAmountAtoms <= 0n ? uiColors.disabledBg : uiColors.primarySoft,
-                }}
+                onPress={() => handleSideChange('buy')}
+                className="h-9 flex-1 rounded-xl items-center justify-center"
+                style={{ backgroundColor: side === 'buy' ? uiColors.primary : 'transparent' }}
               >
-                <Text className="text-[12px] font-semibold leading-4" style={{ color: uiColors.textSecondary }}>
-                  Max
+                <Text
+                  className="text-sm font-semibold leading-5"
+                  style={{ color: side === 'buy' ? uiColors.primaryText : uiColors.textMuted }}
+                >
+                  Buy
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => handleSideChange('sell')}
+                className="h-9 flex-1 rounded-xl items-center justify-center"
+                style={{ backgroundColor: side === 'sell' ? uiColors.primary : 'transparent' }}
+              >
+                <Text
+                  className="text-sm font-semibold leading-5"
+                  style={{ color: side === 'sell' ? uiColors.primaryText : uiColors.textMuted }}
+                >
+                  Sell
                 </Text>
               </Pressable>
             </View>
-            <TextInput
-              value={amountInput}
-              onChangeText={handleAmountChange}
-              placeholder={`0.00 ${amountTokenTicker}`}
-              placeholderTextColor={uiColors.textSubtle}
-              keyboardType="decimal-pad"
-              className="rounded-xl border px-4 py-3.5 text-white text-[22px] font-semibold leading-9"
-              style={[{ borderColor: uiColors.border, backgroundColor: uiColors.panel }, TABULAR_NUMS]}
-            />
-            <Text className="text-sm leading-5 mt-3" style={{ color: uiColors.textSubtle }}>
-              Estimated receive:{' '}
-              <Text
-                className="font-semibold"
-                style={[{ color: hasAmountInput ? uiColors.textSecondary : uiColors.textMuted }, TABULAR_NUMS]}
-              >
-                {estimatedConversionText}
-              </Text>
-            </Text>
-            <Text className="text-sm leading-5 mt-1.5" style={{ color: uiColors.textSubtle }}>
-              Price impact:{' '}
-              <Text className="font-semibold" style={[{ color: priceImpactTextColor }, TABULAR_NUMS]}>
-                {priceImpactDisplay}
-              </Text>{' '}
-              <Text
-                className="font-semibold"
-                style={[
-                  { color: executionPriceDisplay === '—' ? uiColors.textMuted : uiColors.textSecondary },
-                  TABULAR_NUMS,
-                ]}
-              >
-                ({executionPriceDisplay})
-              </Text>
-            </Text>
-            <View className="mt-4">
-              <View className="flex-row items-center justify-between mb-2.5">
-                <Text
-                  className="text-[10px] font-semibold leading-4"
-                  style={[{ color: uiColors.textSubtle }, OVERLINE]}
+
+            <View
+              className="rounded-2xl border p-4 mb-5"
+              style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
+            >
+              <View className="flex-row items-start justify-between mb-3">
+                <View className="flex-1 pr-3">
+                  <Text className="text-[11px] leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                    Order size
+                  </Text>
+                  <View className="mt-1 flex-row flex-wrap">
+                    <Text className="text-sm leading-5 mr-3" style={{ color: uiColors.textMuted }}>
+                      Available{' '}
+                      <Text style={TABULAR_NUMS}>
+                        {selectedAccount && availableAmountLoading ? '...' : formatUiAmount(availableAmountDisplay)}
+                      </Text>{' '}
+                      {amountTokenTicker}
+                    </Text>
+                    <Text className="text-sm leading-5" style={{ color: uiColors.textMuted }}>
+                      Minimum <Text style={TABULAR_NUMS}>{minimumAmountDisplay}</Text> {amountTokenTicker}
+                    </Text>
+                  </View>
+                </View>
+                <Pressable
+                  onPress={() => handleSliderChange(100)}
+                  disabled={!availableAmountAtoms || availableAmountAtoms <= 0n}
+                  className="h-6 rounded-full border px-3 items-center justify-center"
+                  style={{
+                    backgroundColor: uiColors.panel,
+                    borderColor:
+                      !availableAmountAtoms || availableAmountAtoms <= 0n ? uiColors.border : uiColors.primarySoft,
+                    opacity: !availableAmountAtoms || availableAmountAtoms <= 0n ? 0.55 : 1,
+                  }}
                 >
-                  Use balance
-                </Text>
-                <Text className="text-sm font-medium leading-5" style={[{ color: uiColors.textMuted }, TABULAR_NUMS]}>
-                  {sliderValue.toFixed(2)}%
-                </Text>
+                  <Text className="text-xs font-medium leading-4" style={{ color: uiColors.textSecondary }}>
+                    Use max
+                  </Text>
+                </Pressable>
               </View>
+
+              <View
+                className="rounded-[20px] border p-2"
+                style={{
+                  backgroundColor: amountValidationMessage ? uiColors.dangerBg : uiColors.panel,
+                  borderColor: amountValidationMessage ? uiColors.dangerBorder : uiColors.border,
+                }}
+              >
+                <View className="flex-row items-center">
+                  <TextInput
+                    value={amountInput}
+                    onChangeText={handleAmountChange}
+                    placeholder="0.00"
+                    placeholderTextColor={uiColors.textSubtle}
+                    keyboardType="decimal-pad"
+                    className="h-14 flex-1 px-3 text-white text-2xl font-semibold leading-8"
+                    style={TABULAR_NUMS}
+                  />
+                  <View
+                    className="shrink-0 rounded-full border px-3 py-2"
+                    style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
+                  >
+                    <Text className="text-xs font-semibold leading-4" style={[{ color: uiColors.textMuted }, OVERLINE]}>
+                      {amountTokenTicker}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <Text
+                className="text-sm leading-5 mt-3"
+                style={{ color: amountValidationMessage ? uiColors.dangerText : uiColors.textMuted }}
+              >
+                {amountValidationMessage ?? `${sliderValue.toFixed(1)}% of available balance`}
+              </Text>
+            </View>
+
+            <View className="mb-5">
               <PercentageSlider
                 value={sliderValue}
                 onChange={handleSliderChange}
                 disabled={!availableAmountAtoms || availableAmountAtoms <= 0n}
               />
-              <View className="flex-row mt-3">
-                {[25, 50, 75, 100].map((percent) => (
-                  <Pressable
-                    key={percent}
-                    onPress={() => handleSliderChange(percent)}
-                    disabled={!availableAmountAtoms || availableAmountAtoms <= 0n}
-                    className="h-8 rounded-full border px-2.5 mr-2 items-center justify-center"
-                    style={{
-                      borderColor:
-                        !availableAmountAtoms || availableAmountAtoms <= 0n ? uiColors.border : uiColors.primarySoft,
-                      backgroundColor:
-                        !availableAmountAtoms || availableAmountAtoms <= 0n ? uiColors.panelSoft : uiColors.primarySoft,
-                    }}
-                  >
-                    <Text
-                      className="text-sm font-medium leading-5"
-                      style={[{ color: uiColors.textSecondary }, TABULAR_NUMS]}
-                    >
-                      {percent}%
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          </View>
-
-          <View className="mb-4">
-            <Text
-              className="text-[10px] font-semibold mb-2 leading-4"
-              style={[{ color: uiColors.textSubtle }, OVERLINE]}
-            >
-              Duration
-            </Text>
-            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.textMuted }}>
-              Choose how long the order will stream.
-            </Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row">
-                {DURATION_OPTIONS.map((option) => (
-                  <Pressable
-                    key={option.seconds}
-                    onPress={() => {
-                      setDurationSeconds(option.seconds);
-                      setValidationError(null);
-                    }}
-                    className="h-8 rounded-full border px-2.5 mr-2 items-center justify-center"
-                    style={{
-                      backgroundColor: option.seconds === durationSeconds ? uiColors.primary : uiColors.panel,
-                      borderColor: option.seconds === durationSeconds ? uiColors.primaryPress : uiColors.border,
-                    }}
-                  >
-                    <Text
-                      className="text-base font-medium leading-5"
+              <View className="flex-row flex-wrap mt-2">
+                {[25, 50, 75, 100].map((percent) => {
+                  const isSelected = Math.abs(sliderValue - percent) < 0.5;
+                  return (
+                    <Pressable
+                      key={percent}
+                      onPress={() => handleSliderChange(percent)}
+                      disabled={!availableAmountAtoms || availableAmountAtoms <= 0n}
+                      className="h-6 rounded-full border px-3 mr-2 mb-2 items-center justify-center"
                       style={{
-                        color: option.seconds === durationSeconds ? uiColors.primaryText : uiColors.textMuted,
+                        borderColor: isSelected ? uiColors.primaryPress : uiColors.border,
+                        backgroundColor: isSelected ? uiColors.primary : uiColors.panel,
+                        opacity: !availableAmountAtoms || availableAmountAtoms <= 0n ? 0.55 : 1,
                       }}
                     >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                ))}
+                      <Text
+                        className="text-xs font-medium leading-4"
+                        style={[{ color: isSelected ? uiColors.primaryText : uiColors.textMuted }, TABULAR_NUMS]}
+                      >
+                        {percent}%
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
-            </ScrollView>
+            </View>
+
+            <View className="flex-row mb-5">
+              <View
+                className="flex-1 rounded-2xl border p-3 mr-2"
+                style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
+              >
+                <Text className="mb-1 text-[11px] leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
+                  Estimated receive
+                </Text>
+                <Text
+                  className="font-medium text-sm leading-5"
+                  style={[{ color: hasAmountInput ? uiColors.textSecondary : uiColors.textMuted }, TABULAR_NUMS]}
+                >
+                  {estimatedConversionText}
+                </Text>
+              </View>
+              <View
+                className="flex-1 rounded-2xl border p-3 ml-2"
+                style={{
+                  backgroundColor: priceImpactWarningText ? uiColors.warningBg : uiColors.panelSoft,
+                  borderColor: priceImpactWarningText ? uiColors.warningBorder : uiColors.border,
+                }}
+              >
+                <Text
+                  className="mb-1 text-[11px] leading-4"
+                  style={[{ color: priceImpactWarningText ? uiColors.warningText : uiColors.textSubtle }, OVERLINE]}
+                >
+                  Price impact
+                </Text>
+                <Text className="font-medium text-sm leading-5" style={[{ color: priceImpactTextColor }, TABULAR_NUMS]}>
+                  {priceImpactDisplay}{' '}
+                  <Text
+                    style={[
+                      { color: executionPriceDisplay === '—' ? uiColors.textMuted : uiColors.textSecondary },
+                      TABULAR_NUMS,
+                    ]}
+                  >
+                    ({executionPriceDisplay})
+                  </Text>
+                </Text>
+              </View>
+            </View>
+
+            {priceImpactWarningText && (
+              <View
+                className="rounded-[20px] border px-3 py-2 mb-5"
+                style={{ backgroundColor: uiColors.warningBg, borderColor: uiColors.warningBorder }}
+              >
+                <Text className="text-sm leading-5" style={{ color: uiColors.warningText }}>
+                  {priceImpactWarningText}
+                </Text>
+              </View>
+            )}
+
+            <View className="mb-5">
+              <Text
+                className="text-[11px] font-medium mb-3 leading-4"
+                style={[{ color: uiColors.textSubtle }, OVERLINE]}
+              >
+                Duration
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View className="flex-row pb-1">
+                  {DURATION_OPTIONS.map((option) => (
+                    <Pressable
+                      key={option.seconds}
+                      onPress={() => {
+                        setDurationSeconds(option.seconds);
+                        setValidationError(null);
+                      }}
+                      className="h-6 rounded-full border px-3 mr-2 items-center justify-center"
+                      style={{
+                        backgroundColor: option.seconds === durationSeconds ? uiColors.primary : uiColors.panel,
+                        borderColor: option.seconds === durationSeconds ? uiColors.primaryPress : uiColors.border,
+                      }}
+                    >
+                      <Text
+                        className="text-xs font-medium leading-4"
+                        style={{
+                          color: option.seconds === durationSeconds ? uiColors.primaryText : uiColors.textMuted,
+                        }}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            {configLoading && (
+              <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.textMuted }}>
+                Loading market config...
+              </Text>
+            )}
+            {configError && (
+              <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.dangerText }}>
+                {configError}
+              </Text>
+            )}
+            {validationError && (
+              <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.dangerText }}>
+                {validationError}
+              </Text>
+            )}
+
+            {selectedAccount ? (
+              <Pressable
+                onPress={handleSubmitOrder}
+                disabled={submitDisabled}
+                className="h-12 rounded-2xl items-center justify-center"
+                style={{
+                  backgroundColor: submitDisabled ? uiColors.disabledBg : uiColors.primary,
+                }}
+              >
+                <Text className="text-white font-semibold text-base leading-6">{statusLabel}</Text>
+              </Pressable>
+            ) : (
+              <ConnectButton />
+            )}
           </View>
-
-          {configLoading && (
-            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.textMuted }}>
-              Loading market config...
-            </Text>
-          )}
-          {configError && (
-            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.dangerText }}>
-              {configError}
-            </Text>
-          )}
-          {amountExceedsAvailable && (
-            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.dangerText }}>
-              Amount exceeds available balance.
-            </Text>
-          )}
-          {amountBelowMinimum && (
-            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.dangerText }}>
-              Minimum order size is {formatAtoms(MIN_TRADE_AMOUNT_ATOMS, amountDecimals)} {amountTokenTicker}.
-            </Text>
-          )}
-          {priceImpactWarningText && (
-            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.warningText }}>
-              {priceImpactWarningText}
-            </Text>
-          )}
-          {validationError && (
-            <Text className="text-sm leading-5 mb-3" style={{ color: uiColors.dangerText }}>
-              {validationError}
-            </Text>
-          )}
-
-          {selectedAccount ? (
-            <Pressable
-              onPress={handleSubmitOrder}
-              disabled={submitDisabled}
-              className="h-10 rounded-lg items-center justify-center"
-              style={{
-                backgroundColor: submitDisabled ? uiColors.disabledBg : uiColors.primary,
-              }}
-            >
-              <Text className="text-white font-semibold text-lg leading-6">{statusLabel}</Text>
-            </Pressable>
-          ) : (
-            <ConnectButton />
-          )}
         </View>
 
         {selectedAccount && (
