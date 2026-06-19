@@ -62,7 +62,6 @@ import {
   selectBatchClosePositions,
 } from '../utils/trading';
 import { uiColors } from '../theme/colors';
-import { BlurView } from 'expo-blur';
 
 const MARKET = resolver.marketPda(new BN(MARKET_ID));
 const MIN_DURATION_SECONDS = 1 * 60;
@@ -807,7 +806,6 @@ export default function App() {
           visible={isMarketPanelOpen}
         >
           <View className="flex-1 justify-end" style={{ backgroundColor: uiColors.overlay }}>
-            <BlurView intensity={28} tint="dark" className="absolute inset-0" />
             <Pressable className="flex-1" onPress={() => setIsMarketPanelOpen(false)} />
             <View
               className="rounded-t-xl border px-4 pt-3 pb-5"

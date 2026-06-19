@@ -35,7 +35,7 @@ export const uiColors = {
   chartBackground: '#07111F',
   chartGrid: 'rgba(255, 255, 255, 0.08)',
   chartCrosshair: 'rgba(232, 225, 211, 0.58)',
-  overlay: 'rgba(0, 0, 0, 0.35)',
+  overlay: 'rgba(0, 0, 0, 0.55)',
   drawerSurface: 'rgba(15, 26, 44, 0.98)',
   disabledBg: 'rgba(255, 255, 255, 0.08)',
   disabledText: '#8E887D',
