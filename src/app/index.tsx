@@ -892,7 +892,10 @@ export default function App() {
                         Not enough market updates to render chart yet.
                       </Text>
                     ) : (
-                      <View className="overflow-hidden relative" style={{ backgroundColor: uiColors.chartBackground }}>
+                      <View
+                        className="overflow-hidden relative rounded-xl"
+                        style={{ backgroundColor: uiColors.chartBackground }}
+                      >
                         {ENABLE_ADVANCED_CHART ? (
                           <TradingViewChart
                             data={tradingViewCandles}

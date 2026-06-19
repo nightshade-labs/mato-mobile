@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Dimensions, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Text, View, type LayoutChangeEvent } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { getTradingViewChartHtml } from './tradingViewChartHtml';
 import { uiColors } from '../theme/colors';
 
-const { width } = Dimensions.get('window');
-const DEFAULT_WIDTH = width;
+const CHART_BORDER_RADIUS = 12;
 
 export interface TradingViewCandle {
   time: number;
@@ -56,15 +55,18 @@ export function TradingViewChart({
   const webViewRef = useRef<WebView>(null);
   const [isReady, setIsReady] = useState(false);
   const [chartError, setChartError] = useState<string | null>(null);
-  const [chartWidth, setChartWidth] = useState(DEFAULT_WIDTH);
+  const [chartWidth, setChartWidth] = useState(0);
   const lastCandleRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    const subscription = Dimensions.addEventListener('change', ({ window }) => {
-      const nextWidth = window.width;
-      setChartWidth(nextWidth);
-      if (!isReady || !webViewRef.current) return;
+  const handleLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const nextWidth = Math.max(1, Math.floor(event.nativeEvent.layout.width));
+      setChartWidth((currentWidth) => {
+        if (Math.abs(currentWidth - nextWidth) < 1) return currentWidth;
+        return nextWidth;
+      });
 
+      if (!isReady || !webViewRef.current) return;
       webViewRef.current.postMessage(
         JSON.stringify({
           type: 'RESIZE',
@@ -72,15 +74,12 @@ export function TradingViewChart({
           height,
         }),
       );
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [height, isReady]);
+    },
+    [height, isReady],
+  );
 
   useEffect(() => {
-    if (!isReady || !webViewRef.current || data.length === 0) return;
+    if (!isReady || !webViewRef.current || chartWidth <= 0 || data.length === 0) return;
 
     webViewRef.current.postMessage(
       JSON.stringify({
@@ -88,7 +87,7 @@ export function TradingViewChart({
         candles: JSON.stringify(data),
       }),
     );
-  }, [data, isReady]);
+  }, [chartWidth, data, isReady]);
 
   useEffect(() => {
     if (!isReady || !webViewRef.current) return;
@@ -155,11 +154,15 @@ export function TradingViewChart({
   };
 
   return (
-    <View className="overflow-hidden relative" style={{ backgroundColor: uiColors.chartBackground }}>
+    <View
+      className="overflow-hidden relative"
+      onLayout={handleLayout}
+      style={{ backgroundColor: uiColors.chartBackground, borderRadius: CHART_BORDER_RADIUS }}
+    >
       {!isReady && (
         <View
           className="absolute inset-0 items-center justify-center z-10"
-          style={{ backgroundColor: uiColors.chartBackground }}
+          style={{ backgroundColor: uiColors.chartBackground, borderRadius: CHART_BORDER_RADIUS }}
         >
           <ActivityIndicator size="small" color={uiColors.textMuted} />
           {chartError && (
@@ -170,20 +173,27 @@ export function TradingViewChart({
         </View>
       )}
 
-      <WebView
-        ref={webViewRef}
-        source={{ html: getTradingViewChartHtml(chartWidth, height) }}
-        style={{ width: chartWidth, height, backgroundColor: uiColors.chartBackground }}
-        scrollEnabled={false}
-        nestedScrollEnabled
-        bounces={false}
-        javaScriptEnabled
-        originWhitelist={['*']}
-        mixedContentMode="compatibility"
-        onMessage={(event) => handleMessage(event.nativeEvent.data)}
-        onError={(event) => setChartError(event.nativeEvent.description || 'WebView error')}
-        androidLayerType="hardware"
-      />
+      {chartWidth > 0 && (
+        <WebView
+          ref={webViewRef}
+          source={{ html: getTradingViewChartHtml(chartWidth, height) }}
+          style={{
+            width: chartWidth,
+            height,
+            backgroundColor: uiColors.chartBackground,
+            borderRadius: CHART_BORDER_RADIUS,
+          }}
+          scrollEnabled={false}
+          nestedScrollEnabled
+          bounces={false}
+          javaScriptEnabled
+          originWhitelist={['*']}
+          mixedContentMode="compatibility"
+          onMessage={(event) => handleMessage(event.nativeEvent.data)}
+          onError={(event) => setChartError(event.nativeEvent.description || 'WebView error')}
+          androidLayerType="hardware"
+        />
+      )}
     </View>
   );
 }
