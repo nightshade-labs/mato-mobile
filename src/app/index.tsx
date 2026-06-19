@@ -708,7 +708,7 @@ export default function App() {
             </Text>
           </View>
           <View className="flex-row items-center">
-            <Text className="text-white text-[26px] font-semibold leading-8" style={TABULAR_NUMS}>
+            <Text className="text-[26px] font-semibold leading-8" style={[{ color: uiColors.accent }, TABULAR_NUMS]}>
               {displayPrice !== null ? `$${displayPrice.toFixed(4)}` : '—'}
             </Text>
             {priceDelta !== null && priceDeltaPercent !== null && (
@@ -780,7 +780,7 @@ export default function App() {
                     {baseTicker}/{quoteTicker}
                   </Text>
                   <View className="mt-1 flex-row items-center">
-                    <Text className="text-sm leading-5" style={[{ color: uiColors.textMuted }, TABULAR_NUMS]}>
+                    <Text className="text-sm leading-5" style={[{ color: uiColors.accent }, TABULAR_NUMS]}>
                       {displayPrice !== null ? `$${displayPrice.toFixed(4)}` : '—'}
                     </Text>
                     {priceDelta !== null && priceDeltaPercent !== null && (
@@ -982,16 +982,16 @@ export default function App() {
 
         <View className="mx-4 pt-5 pb-4">
           <View
-            className="rounded-[22px] border px-4 py-5"
+            className="rounded-[18px] border px-4 py-5"
             style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
           >
             <View
-              className="flex-row rounded-2xl border p-1 mb-5"
+              className="flex-row rounded-[14px] border p-1 mb-5"
               style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
             >
               <Pressable
                 onPress={() => handleSideChange('buy')}
-                className="h-9 flex-1 rounded-xl items-center justify-center"
+                className="h-9 flex-1 rounded-[10px] items-center justify-center"
                 style={{ backgroundColor: side === 'buy' ? uiColors.primary : 'transparent' }}
               >
                 <Text
@@ -1003,7 +1003,7 @@ export default function App() {
               </Pressable>
               <Pressable
                 onPress={() => handleSideChange('sell')}
-                className="h-9 flex-1 rounded-xl items-center justify-center"
+                className="h-9 flex-1 rounded-[10px] items-center justify-center"
                 style={{ backgroundColor: side === 'sell' ? uiColors.primary : 'transparent' }}
               >
                 <Text
@@ -1016,7 +1016,7 @@ export default function App() {
             </View>
 
             <View
-              className="rounded-2xl border p-4 mb-5"
+              className="rounded-[16px] border p-4 mb-5"
               style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
             >
               <View className="flex-row items-start justify-between mb-3">
@@ -1055,7 +1055,7 @@ export default function App() {
               </View>
 
               <View
-                className="rounded-[20px] border p-2"
+                className="rounded-[18px] border p-2"
                 style={{
                   backgroundColor: amountValidationMessage ? uiColors.dangerBg : uiColors.panel,
                   borderColor: amountValidationMessage ? uiColors.dangerBorder : uiColors.border,
@@ -1125,7 +1125,7 @@ export default function App() {
 
             <View className="flex-row mb-5">
               <View
-                className="flex-1 rounded-2xl border p-3 mr-2"
+                className="flex-1 rounded-[16px] border p-3 mr-2"
                 style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
               >
                 <Text className="mb-1 text-[11px] leading-4" style={[{ color: uiColors.textSubtle }, OVERLINE]}>
@@ -1139,7 +1139,7 @@ export default function App() {
                 </Text>
               </View>
               <View
-                className="flex-1 rounded-2xl border p-3 ml-2"
+                className="flex-1 rounded-[16px] border p-3 ml-2"
                 style={{
                   backgroundColor: priceImpactWarningText ? uiColors.warningBg : uiColors.panelSoft,
                   borderColor: priceImpactWarningText ? uiColors.warningBorder : uiColors.border,
@@ -1167,7 +1167,7 @@ export default function App() {
 
             {priceImpactWarningText && (
               <View
-                className="rounded-[20px] border px-3 py-2 mb-5"
+                className="rounded-[16px] border px-3 py-2 mb-5"
                 style={{ backgroundColor: uiColors.warningBg, borderColor: uiColors.warningBorder }}
               >
                 <Text className="text-sm leading-5" style={{ color: uiColors.warningText }}>
@@ -1232,7 +1232,7 @@ export default function App() {
               <Pressable
                 onPress={handleSubmitOrder}
                 disabled={submitDisabled}
-                className="h-12 rounded-2xl items-center justify-center"
+                className="h-12 rounded-[16px] items-center justify-center"
                 style={{
                   backgroundColor: submitDisabled ? uiColors.disabledBg : uiColors.primary,
                 }}
@@ -1245,28 +1245,24 @@ export default function App() {
           </View>
         </View>
 
-        {selectedAccount && (
-          <View
-            className="border-t border-b px-4 py-5 mt-4"
-            style={{
-              backgroundColor: uiColors.surface,
-              borderTopColor: uiColors.border,
-              borderBottomColor: uiColors.border,
-            }}
-          >
-            <View className="flex-row items-end border-b mb-4" style={{ borderBottomColor: uiColors.divider }}>
+        <View className="mx-4 mt-4 pb-5">
+          <View className="flex-row flex-wrap items-center justify-between">
+            <View className="flex-row flex-wrap">
               {[
-                { key: 'active', label: `Positions (${positions.length})` },
-                { key: 'closed', label: 'Closed' },
+                { key: 'active', label: 'Active positions' },
+                { key: 'closed', label: 'Closed positions' },
               ].map((tab) => (
                 <Pressable
                   key={tab.key}
                   onPress={() => setPositionPanelTab(tab.key as PositionPanelTab)}
-                  className="px-2 pb-2.5 pt-1.5 mr-4 border-b"
-                  style={{ borderBottomColor: positionPanelTab === tab.key ? uiColors.primary : 'transparent' }}
+                  className="h-7 rounded-full border px-3 mr-2 mb-3 items-center justify-center"
+                  style={{
+                    backgroundColor: positionPanelTab === tab.key ? uiColors.primary : uiColors.panel,
+                    borderColor: positionPanelTab === tab.key ? uiColors.primaryPress : uiColors.border,
+                  }}
                 >
                   <Text
-                    className="text-[15px] font-medium leading-5"
+                    className="text-xs font-medium leading-4"
                     style={{ color: positionPanelTab === tab.key ? uiColors.primaryText : uiColors.textMuted }}
                   >
                     {tab.label}
@@ -1275,31 +1271,20 @@ export default function App() {
               ))}
             </View>
 
-            {lowMaintenanceNativeSolWarning && positionPanelTab === 'active' && (
-              <View
-                className="rounded-xl border px-3 py-3 mb-4"
-                style={{ backgroundColor: uiColors.warningBg, borderColor: uiColors.warningBorder }}
-              >
-                <Text className="text-sm leading-5" style={{ color: uiColors.warningText }}>
-                  {lowMaintenanceNativeSolWarning}
-                </Text>
-              </View>
-            )}
-
-            {positionPanelTab === 'active' && positions.length > 1 && (
-              <View className="flex-row mb-4">
+            {selectedAccount && positionPanelTab === 'active' && positions.length > 1 && (
+              <View className="flex-row flex-wrap mb-1">
                 <Pressable
                   onPress={() => handleBatchClosePositions(endedBatchPositions.map((position) => position.publicKey))}
                   disabled={isClosing || endedBatchPositions.length === 0}
-                  className="flex-1 rounded-xl border py-3 items-center mr-2"
+                  className="h-7 rounded-full border px-3 mr-2 mb-2 items-center justify-center"
                   style={{
-                    backgroundColor:
-                      endedBatchPositions.length === 0 || isClosing ? uiColors.panelSoft : uiColors.dangerBg,
+                    backgroundColor: uiColors.panel,
                     borderColor:
                       endedBatchPositions.length === 0 || isClosing ? uiColors.border : uiColors.dangerBorder,
+                    opacity: endedBatchPositions.length === 0 || isClosing ? 0.55 : 1,
                   }}
                 >
-                  <Text className="text-sm font-semibold leading-5" style={{ color: uiColors.dangerText }}>
+                  <Text className="text-xs font-medium leading-4" style={{ color: uiColors.dangerText }}>
                     Close ended{' '}
                     {endedBatchPositions.length > 0 ? `(${endedBatchPositions.length}/${endedPositions.length})` : ''}
                   </Text>
@@ -1307,89 +1292,115 @@ export default function App() {
                 <Pressable
                   onPress={() => handleBatchClosePositions(allBatchPositions.map((position) => position.publicKey))}
                   disabled={isClosing || allBatchPositions.length === 0}
-                  className="flex-1 rounded-xl border py-3 items-center ml-2"
+                  className="h-7 rounded-full border px-3 mb-2 items-center justify-center"
                   style={{
-                    backgroundColor:
-                      allBatchPositions.length === 0 || isClosing ? uiColors.panelSoft : uiColors.dangerBg,
+                    backgroundColor: uiColors.panel,
                     borderColor: allBatchPositions.length === 0 || isClosing ? uiColors.border : uiColors.dangerBorder,
+                    opacity: allBatchPositions.length === 0 || isClosing ? 0.55 : 1,
                   }}
                 >
-                  <Text className="text-sm font-semibold leading-5" style={{ color: uiColors.dangerText }}>
+                  <Text className="text-xs font-medium leading-4" style={{ color: uiColors.dangerText }}>
                     Close all ({allBatchPositions.length}/{positions.length})
                   </Text>
                 </Pressable>
               </View>
             )}
+          </View>
 
-            {positionPanelTab === 'active' ? (
-              <>
-                {positionsLoading ? (
+          {lowMaintenanceNativeSolWarning && selectedAccount && positionPanelTab === 'active' && (
+            <View
+              className="rounded-[16px] border px-3 py-3 mb-4"
+              style={{ backgroundColor: uiColors.warningBg, borderColor: uiColors.warningBorder }}
+            >
+              <Text className="text-sm leading-5" style={{ color: uiColors.warningText }}>
+                {lowMaintenanceNativeSolWarning}
+              </Text>
+            </View>
+          )}
+
+          {positionPanelTab === 'active' ? (
+            <>
+              {!selectedAccount ? (
+                <View
+                  className="min-h-[132px] items-center justify-center rounded-[18px] border px-7"
+                  style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
+                >
+                  <Text className="text-center text-lg leading-7" style={{ color: uiColors.textMuted }}>
+                    Your active positions will appear here once an order is live.
+                  </Text>
+                </View>
+              ) : positionsLoading ? (
+                <View
+                  className="min-h-[132px] items-center justify-center rounded-[18px] border px-7"
+                  style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
+                >
                   <ActivityIndicator size="small" color={uiColors.textMuted} />
-                ) : positions.length === 0 ? (
-                  <Text className="text-sm leading-5" style={{ color: uiColors.textSubtle }}>
-                    No active positions.
+                </View>
+              ) : positions.length === 0 ? (
+                <View
+                  className="min-h-[132px] items-center justify-center rounded-[18px] border px-7"
+                  style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
+                >
+                  <Text className="text-center text-lg leading-7" style={{ color: uiColors.textMuted }}>
+                    Your active positions will appear here once an order is live.
                   </Text>
-                ) : (
-                  <View>
-                    {paginatedActivePositions.map((position) => (
-                      <ActivePositionCard
-                        key={position.publicKey.toBase58()}
-                        market={MARKET}
-                        position={position}
-                        baseTicker={baseTicker}
-                        quoteTicker={quoteTicker}
-                        baseDecimals={baseDecimals}
-                        quoteDecimals={quoteDecimals}
-                        isClosing={isClosing}
-                        closeButtonLabel={closeButtonLabel}
-                        onClose={() => handleClosePosition(position.publicKey)}
-                        streamingState={streamingState}
-                      />
-                    ))}
-                    <PositionPagination
-                      itemLabel="positions"
-                      onPageChange={setActivePositionPage}
-                      page={normalizedActivePositionPage}
-                      pageCount={activePositionPageCount}
-                      pageSize={POSITION_PAGE_SIZE}
-                      totalItems={activePositionsNewestFirst.length}
+                </View>
+              ) : (
+                <View>
+                  {paginatedActivePositions.map((position) => (
+                    <ActivePositionCard
+                      key={position.publicKey.toBase58()}
+                      market={MARKET}
+                      position={position}
+                      baseTicker={baseTicker}
+                      quoteTicker={quoteTicker}
+                      baseDecimals={baseDecimals}
+                      quoteDecimals={quoteDecimals}
+                      isClosing={isClosing}
+                      closeButtonLabel={closeButtonLabel}
+                      onClose={() => handleClosePosition(position.publicKey)}
+                      streamingState={streamingState}
                     />
-                  </View>
-                )}
+                  ))}
+                  <PositionPagination
+                    itemLabel="positions"
+                    onPageChange={setActivePositionPage}
+                    page={normalizedActivePositionPage}
+                    pageCount={activePositionPageCount}
+                    pageSize={POSITION_PAGE_SIZE}
+                    totalItems={activePositionsNewestFirst.length}
+                  />
+                </View>
+              )}
 
-                {streamingStateError && (
-                  <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.dangerText }}>
-                    {streamingStateError}
-                  </Text>
-                )}
-              </>
-            ) : (
-              <ClosedPositionsList
-                embedded
-                positionAuthority={positionAuthority}
-                marketId={MARKET_ID}
-                baseTicker={baseTicker}
-                quoteTicker={quoteTicker}
-                baseDecimals={baseDecimals}
-                quoteDecimals={quoteDecimals}
-                marketHistorySeed={marketEvents}
-              />
-            )}
-          </View>
-        )}
-        {!selectedAccount && (
-          <View
-            className="mx-4 mt-4 rounded-xl border p-5"
-            style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
-          >
-            <Text className="text-lg font-semibold leading-6" style={{ color: uiColors.textPrimary }}>
-              Positions
-            </Text>
-            <Text className="mt-2 text-sm leading-5" style={{ color: uiColors.textSubtle }}>
-              Connect your wallet to load active and closed positions.
-            </Text>
-          </View>
-        )}
+              {streamingStateError && selectedAccount && (
+                <Text className="text-sm leading-5 mt-2" style={{ color: uiColors.dangerText }}>
+                  {streamingStateError}
+                </Text>
+              )}
+            </>
+          ) : selectedAccount ? (
+            <ClosedPositionsList
+              embedded
+              positionAuthority={positionAuthority}
+              marketId={MARKET_ID}
+              baseTicker={baseTicker}
+              quoteTicker={quoteTicker}
+              baseDecimals={baseDecimals}
+              quoteDecimals={quoteDecimals}
+              marketHistorySeed={marketEvents}
+            />
+          ) : (
+            <View
+              className="min-h-[132px] items-center justify-center rounded-[18px] border px-7"
+              style={{ backgroundColor: uiColors.surface, borderColor: uiColors.border }}
+            >
+              <Text className="text-center text-lg leading-7" style={{ color: uiColors.textMuted }}>
+                Connect a wallet to load your closed positions.
+              </Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
