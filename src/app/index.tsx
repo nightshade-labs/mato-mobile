@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import BN from 'bn.js';
 import { toast } from 'sonner-native';
 import { PublicKey } from '@solana/web3.js';
+import { ChartCandlestick, ListOrdered, RefreshCcw, XIcon } from 'lucide-react-native';
 import { resolver } from '../utils/accountResolver';
 import { getMaxTransferAmount, parseTokenAmount } from '../utils/token';
 import { useMarketConfig } from '../hooks/useMarketConfig';
@@ -36,6 +37,7 @@ import { ActivePositionCard } from '../components/ActivePositionCard';
 import { CandleChart } from '../components/CandleChart';
 import { TradingViewChart } from '../components/TradingViewChart';
 import { OrderBookTable } from '../components/OrderBookTable';
+import { clampPage, getPageCount, getPageItems, PositionPagination } from '../components/PositionPagination';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import type { MarketConfigRow } from '../integrations/supabase/types';
 import { useSolBalance } from '../hooks/useSolBalance';
@@ -70,6 +72,7 @@ const PRECISION_FACTOR = 1000000000;
 
 const ENABLE_ADVANCED_CHART = process.env.EXPO_PUBLIC_ENABLE_ADVANCED_CHART !== 'false';
 const CHART_TIMEFRAME_STORAGE_KEY = 'mato_mobile_chart_timeframe';
+const POSITION_PAGE_SIZE = 10;
 
 const TABULAR_NUMS: TextStyle = { fontVariant: ['tabular-nums'] };
 const OVERLINE: TextStyle = { textTransform: 'uppercase', letterSpacing: 0.8 };
@@ -185,6 +188,7 @@ export default function App() {
   const [isMarketPanelOpen, setIsMarketPanelOpen] = useState(false);
   const [marketPanelTab, setMarketPanelTab] = useState<MarketPanelTab>('chart');
   const [positionPanelTab, setPositionPanelTab] = useState<PositionPanelTab>('active');
+  const [activePositionPage, setActivePositionPage] = useState(0);
   const [chartTimeframe, setChartTimeframe] = useState<ChartTimeframe>('1h');
   const [chartResetSignal, setChartResetSignal] = useState(0);
   const [isChartTimeframeReady, setIsChartTimeframeReady] = useState(false);
@@ -312,6 +316,21 @@ export default function App() {
   }, [amountAtoms, amountDecimals]);
   const hasAmountInput = amountUiValue !== null && amountUiValue > 0;
   const activePositionsNewestFirst = useMemo(() => [...positions].sort((a, b) => b.id.cmp(a.id)), [positions]);
+  const activePositionPageCount = getPageCount(activePositionsNewestFirst.length, POSITION_PAGE_SIZE);
+  const normalizedActivePositionPage = clampPage(
+    activePositionPage,
+    activePositionsNewestFirst.length,
+    POSITION_PAGE_SIZE,
+  );
+  const paginatedActivePositions = useMemo(
+    () =>
+      getPageItems({
+        items: activePositionsNewestFirst,
+        page: normalizedActivePositionPage,
+        pageSize: POSITION_PAGE_SIZE,
+      }),
+    [activePositionsNewestFirst, normalizedActivePositionPage],
+  );
   const currentSlot = streamingState?.currentSlot ?? null;
   const endedPositions = useMemo(
     () => positions.filter((position) => isEndedPosition(position, currentSlot)),
@@ -450,6 +469,10 @@ export default function App() {
     const timeout = setTimeout(() => setIsSwitchingTimeframe(false), 220);
     return () => clearTimeout(timeout);
   }, [chartTimeframe, isChartTimeframeReady]);
+
+  useEffect(() => {
+    setActivePositionPage((current) => clampPage(current, activePositionsNewestFirst.length, POSITION_PAGE_SIZE));
+  }, [activePositionsNewestFirst.length]);
 
   const handleSideChange = (nextSide: OrderSide) => {
     setSide(nextSide);
@@ -709,9 +732,16 @@ export default function App() {
               borderColor: uiColors.border,
             }}
           >
-            <Text className="text-xs font-semibold leading-4" style={{ color: uiColors.textSecondary }}>
-              {marketPanelTab === 'chart' ? 'Chart' : 'Orders'}
-            </Text>
+            <View className="flex-row items-center">
+              {marketPanelTab === 'chart' ? (
+                <ChartCandlestick color={uiColors.textSecondary} size={13} strokeWidth={2.2} />
+              ) : (
+                <ListOrdered color={uiColors.textSecondary} size={13} strokeWidth={2.2} />
+              )}
+              <Text className="ml-1 text-xs font-semibold leading-4" style={{ color: uiColors.textSecondary }}>
+                {marketPanelTab === 'chart' ? 'Chart' : 'Orders'}
+              </Text>
+            </View>
           </Pressable>
         </View>
       </Pressable>
@@ -768,21 +798,20 @@ export default function App() {
                 </View>
                 <Pressable
                   onPress={() => setIsMarketPanelOpen(false)}
-                  className="absolute right-0 top-0 h-9 w-9 items-center justify-center rounded-full"
+                  className="absolute right-0 top-0 h-8 w-8 items-center justify-center rounded-full"
                   style={{ backgroundColor: uiColors.panelSoft }}
                 >
-                  <Text className="text-lg leading-6" style={{ color: uiColors.textSecondary }}>
-                    X
-                  </Text>
+                  <XIcon color={uiColors.textSecondary} size={16} strokeWidth={2.4} />
                 </Pressable>
               </View>
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View className="flex-row items-center mb-4">
                   {[
-                    { key: 'chart', label: 'Chart' },
-                    { key: 'orderBook', label: 'Orders' },
+                    { key: 'chart', label: 'Chart', Icon: ChartCandlestick },
+                    { key: 'orderBook', label: 'Orders', Icon: ListOrdered },
                   ].map((tab) => {
                     const isActive = marketPanelTab === tab.key;
+                    const iconColor = isActive ? uiColors.primaryText : uiColors.textMuted;
                     return (
                       <Pressable
                         key={tab.key}
@@ -793,12 +822,15 @@ export default function App() {
                           borderColor: isActive ? uiColors.primaryPress : uiColors.border,
                         }}
                       >
-                        <Text
-                          className="text-sm font-semibold leading-5"
-                          style={{ color: isActive ? uiColors.primaryText : uiColors.textMuted }}
-                        >
-                          {tab.label}
-                        </Text>
+                        <View className="flex-row items-center">
+                          <tab.Icon color={iconColor} size={13} strokeWidth={2.2} />
+                          <Text
+                            className="ml-1 text-xs font-semibold leading-4"
+                            style={{ color: isActive ? uiColors.primaryText : uiColors.textMuted }}
+                          >
+                            {tab.label}
+                          </Text>
+                        </View>
                       </Pressable>
                     );
                   })}
@@ -838,9 +870,15 @@ export default function App() {
                           className="rounded-full border px-2.5 py-1.5"
                           style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
                         >
-                          <Text className="text-xs font-semibold leading-4" style={{ color: uiColors.textSecondary }}>
-                            Reset
-                          </Text>
+                          <View className="flex-row items-center">
+                            <RefreshCcw color={uiColors.textSecondary} size={13} strokeWidth={2.2} />
+                            <Text
+                              className="ml-1 text-xs font-semibold leading-4"
+                              style={{ color: uiColors.textSecondary }}
+                            >
+                              Reset
+                            </Text>
+                          </View>
                         </Pressable>
                       )}
                     </View>
@@ -942,7 +980,7 @@ export default function App() {
           >
             <Pressable
               onPress={() => handleSideChange('buy')}
-              className="flex-1 py-3.5 rounded-lg items-center"
+              className="h-8 flex-1 rounded-lg items-center justify-center"
               style={{ backgroundColor: side === 'buy' ? uiColors.primary : 'transparent' }}
             >
               <Text
@@ -954,7 +992,7 @@ export default function App() {
             </Pressable>
             <Pressable
               onPress={() => handleSideChange('sell')}
-              className="flex-1 py-3.5 rounded-lg items-center"
+              className="h-8 flex-1 rounded-lg items-center justify-center"
               style={{ backgroundColor: side === 'sell' ? uiColors.primary : 'transparent' }}
             >
               <Text
@@ -990,7 +1028,7 @@ export default function App() {
               <Pressable
                 onPress={() => handleSliderChange(100)}
                 disabled={!availableAmountAtoms || availableAmountAtoms <= 0n}
-                className="px-3.5 py-1.5 rounded-full"
+                className="h-6 rounded-full px-2 items-center justify-center"
                 style={{
                   backgroundColor:
                     !availableAmountAtoms || availableAmountAtoms <= 0n ? uiColors.disabledBg : uiColors.primarySoft,
@@ -1057,7 +1095,7 @@ export default function App() {
                     key={percent}
                     onPress={() => handleSliderChange(percent)}
                     disabled={!availableAmountAtoms || availableAmountAtoms <= 0n}
-                    className="px-3.5 py-2 rounded-full border mr-2"
+                    className="h-8 rounded-full border px-2.5 mr-2 items-center justify-center"
                     style={{
                       borderColor:
                         !availableAmountAtoms || availableAmountAtoms <= 0n ? uiColors.border : uiColors.primarySoft,
@@ -1096,7 +1134,7 @@ export default function App() {
                       setDurationSeconds(option.seconds);
                       setValidationError(null);
                     }}
-                    className="px-4 py-2.5 rounded-full border mr-2"
+                    className="h-8 rounded-full border px-2.5 mr-2 items-center justify-center"
                     style={{
                       backgroundColor: option.seconds === durationSeconds ? uiColors.primary : uiColors.panel,
                       borderColor: option.seconds === durationSeconds ? uiColors.primaryPress : uiColors.border,
@@ -1151,7 +1189,7 @@ export default function App() {
             <Pressable
               onPress={handleSubmitOrder}
               disabled={submitDisabled}
-              className="rounded-xl py-4.5 items-center"
+              className="h-10 rounded-lg items-center justify-center"
               style={{
                 backgroundColor: submitDisabled ? uiColors.disabledBg : uiColors.primary,
               }}
@@ -1249,7 +1287,7 @@ export default function App() {
                   </Text>
                 ) : (
                   <View>
-                    {activePositionsNewestFirst.map((position) => (
+                    {paginatedActivePositions.map((position) => (
                       <ActivePositionCard
                         key={position.publicKey.toBase58()}
                         market={MARKET}
@@ -1264,6 +1302,14 @@ export default function App() {
                         streamingState={streamingState}
                       />
                     ))}
+                    <PositionPagination
+                      itemLabel="positions"
+                      onPageChange={setActivePositionPage}
+                      page={normalizedActivePositionPage}
+                      pageCount={activePositionPageCount}
+                      pageSize={POSITION_PAGE_SIZE}
+                      totalItems={activePositionsNewestFirst.length}
+                    />
                   </View>
                 )}
 

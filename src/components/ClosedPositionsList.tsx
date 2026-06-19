@@ -8,6 +8,7 @@ import type { ClosePositionEvent, MarketUpdateEvent } from '../integrations/supa
 import { queryKeys } from '../query/keys';
 import { uiColors } from '../theme/colors';
 import { CLUSTER } from '../utils/constants';
+import { clampPage, getPageCount, getPageItems, PositionPagination } from './PositionPagination';
 import {
   buildClosedPositionMiniChart,
   type MarketPricePoint,
@@ -43,6 +44,7 @@ const IDLE_CHART_STATE: ClosedPositionChartState = {
   error: null,
 };
 const MAX_CONCURRENT_CHART_LOADS = 4;
+const POSITION_PAGE_SIZE = 10;
 
 function formatAtomsToDisplay(amountAtoms: bigint, decimals: number): string {
   if (amountAtoms <= 0n) return '0';
@@ -194,6 +196,7 @@ export function ClosedPositionsList({
     limit,
   });
   const [chartStatesByEventId, setChartStatesByEventId] = useState<Map<number, ClosedPositionChartState>>(new Map());
+  const [closedPositionPage, setClosedPositionPage] = useState(0);
   const chartLoadRunRef = useRef(0);
   const isMountedRef = useRef(true);
   const normalizedSeedHistory = useMemo(
@@ -201,12 +204,27 @@ export function ClosedPositionsList({
     [baseDecimals, marketHistorySeed, quoteDecimals],
   );
   const sortedEvents = useMemo(() => [...events].sort(sortClosedPositionEventsNewestFirst), [events]);
+  const closedPositionPageCount = getPageCount(sortedEvents.length, POSITION_PAGE_SIZE);
+  const normalizedClosedPositionPage = clampPage(closedPositionPage, sortedEvents.length, POSITION_PAGE_SIZE);
+  const paginatedEvents = useMemo(
+    () =>
+      getPageItems({
+        items: sortedEvents,
+        page: normalizedClosedPositionPage,
+        pageSize: POSITION_PAGE_SIZE,
+      }),
+    [normalizedClosedPositionPage, sortedEvents],
+  );
 
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    setClosedPositionPage((current) => clampPage(current, sortedEvents.length, POSITION_PAGE_SIZE));
+  }, [sortedEvents.length]);
 
   useEffect(() => {
     chartLoadRunRef.current += 1;
@@ -269,8 +287,8 @@ export function ClosedPositionsList({
     const remainingSlots = MAX_CONCURRENT_CHART_LOADS - activeChartLoadCount;
     if (remainingSlots <= 0) return [];
 
-    return findNextPendingChartEvents(sortedEvents, chartStatesByEventId, remainingSlots);
-  }, [activeChartLoadCount, chartStatesByEventId, sortedEvents]);
+    return findNextPendingChartEvents(paginatedEvents, chartStatesByEventId, remainingSlots);
+  }, [activeChartLoadCount, chartStatesByEventId, paginatedEvents]);
 
   useEffect(() => {
     if (pendingChartEvents.length === 0) return;
@@ -354,7 +372,7 @@ export function ClosedPositionsList({
         </Text>
       ) : (
         <View>
-          {sortedEvents.map((event) => (
+          {paginatedEvents.map((event) => (
             <ClosedPositionRow
               key={event.id}
               event={event}
@@ -365,6 +383,14 @@ export function ClosedPositionsList({
               quoteDecimals={quoteDecimals}
             />
           ))}
+          <PositionPagination
+            itemLabel="positions"
+            onPageChange={setClosedPositionPage}
+            page={normalizedClosedPositionPage}
+            pageCount={closedPositionPageCount}
+            pageSize={POSITION_PAGE_SIZE}
+            totalItems={sortedEvents.length}
+          />
         </View>
       )}
 

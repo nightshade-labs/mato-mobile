@@ -52,7 +52,7 @@ export function ConnectButton({ variant = 'default' }: ConnectButtonProps) {
     if (variant === 'compact') {
       return (
         <TouchableOpacity
-          className="rounded-full px-4.5 py-2.5 items-center"
+          className="h-8 rounded-full px-2.5 items-center justify-center"
           style={{ backgroundColor: uiColors.panelSoft, borderWidth: 1, borderColor: uiColors.border }}
           onPress={handleDisconnect}
         >
@@ -64,7 +64,7 @@ export function ConnectButton({ variant = 'default' }: ConnectButtonProps) {
     }
     return (
       <TouchableOpacity
-        className="rounded-xl p-4 items-center"
+        className="h-10 rounded-lg items-center justify-center px-2.5"
         style={{ backgroundColor: uiColors.panelSoft, borderWidth: 1, borderColor: uiColors.border }}
         onPress={handleDisconnect}
       >
@@ -78,7 +78,7 @@ export function ConnectButton({ variant = 'default' }: ConnectButtonProps) {
   if (variant === 'compact') {
     return (
       <TouchableOpacity
-        className="rounded-full px-4.5 py-2.5 items-center"
+        className="h-8 rounded-full px-2.5 items-center justify-center"
         style={{ backgroundColor: uiColors.primary }}
         onPress={handleConnect}
       >
@@ -90,7 +90,11 @@ export function ConnectButton({ variant = 'default' }: ConnectButtonProps) {
   }
 
   return (
-    <TouchableOpacity className="rounded-xl p-4 items-center" style={{ backgroundColor: uiColors.primary }} onPress={handleConnect}>
+    <TouchableOpacity
+      className="h-10 rounded-lg items-center justify-center px-2.5"
+      style={{ backgroundColor: uiColors.primary }}
+      onPress={handleConnect}
+    >
       <Text className="text-lg font-semibold leading-6" style={{ color: uiColors.primaryText }}>
         Connect Wallet
       </Text>
