@@ -37,10 +37,11 @@ import { CandleChart } from '../components/CandleChart';
 import {
   TradingViewChart,
   type TradingViewCandle,
+  type TradingViewDisplayMode,
   type TradingViewPositionOverlay,
 } from '../components/TradingViewChart';
 import { OrderBookTable } from '../components/OrderBookTable';
-import { ChartCandlestickIcon, ListOrderedIcon, RefreshIcon, XIcon } from '../components/NativeIcons';
+import { ChartCandlestickIcon, ChartLineIcon, ListOrderedIcon, RefreshIcon, XIcon } from '../components/NativeIcons';
 import { clampPage, getPageCount, getPageItems, PositionPagination } from '../components/PositionPagination';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import type { MarketConfigRow } from '../integrations/supabase/types';
@@ -269,6 +270,7 @@ export default function App() {
   const [positionPanelTab, setPositionPanelTab] = useState<PositionPanelTab>('active');
   const [activePositionPage, setActivePositionPage] = useState(0);
   const [chartTimeframe, setChartTimeframe] = useState<ChartTimeframe>('1h');
+  const [chartDisplayMode, setChartDisplayMode] = useState<TradingViewDisplayMode>('candles');
   const [chartResetSignal, setChartResetSignal] = useState(0);
   const [isChartTimeframeReady, setIsChartTimeframeReady] = useState(false);
   const [isSwitchingTimeframe, setIsSwitchingTimeframe] = useState(false);
@@ -1052,6 +1054,37 @@ export default function App() {
                         </Pressable>
                       )}
                     </View>
+                    {ENABLE_ADVANCED_CHART && (
+                      <View
+                        className="self-start flex-row rounded-full border p-0.5 mb-3"
+                        style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
+                      >
+                        {[
+                          { label: 'Candles', mode: 'candles' as const, Icon: ChartCandlestickIcon },
+                          { label: 'Line', mode: 'line' as const, Icon: ChartLineIcon },
+                        ].map(({ label, mode, Icon }) => {
+                          const isActive = chartDisplayMode === mode;
+                          return (
+                            <Pressable
+                              key={mode}
+                              onPress={() => setChartDisplayMode(mode)}
+                              className="h-6 rounded-full px-2.5 items-center justify-center"
+                              style={{ backgroundColor: isActive ? uiColors.primary : 'transparent' }}
+                            >
+                              <View className="flex-row items-center">
+                                <Icon color={isActive ? uiColors.primaryText : uiColors.textMuted} size={12} />
+                                <Text
+                                  className="ml-1 text-xs font-medium leading-4"
+                                  style={{ color: isActive ? uiColors.primaryText : uiColors.textMuted }}
+                                >
+                                  {label}
+                                </Text>
+                              </View>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    )}
 
                     {!isChartTimeframeReady ? (
                       <ActivityIndicator size="small" color={uiColors.textMuted} />
@@ -1069,6 +1102,7 @@ export default function App() {
                         {ENABLE_ADVANCED_CHART ? (
                           <TradingViewChart
                             data={tradingViewCandles}
+                            displayMode={chartDisplayMode}
                             positionOverlays={activeChartPositionOverlays}
                             lastCandle={latestTradingViewCandle}
                             onRequestMoreHistory={handleLoadMoreMarketHistory}

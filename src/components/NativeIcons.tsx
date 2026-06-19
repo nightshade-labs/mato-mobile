@@ -29,6 +29,48 @@ export function ChartCandlestickIcon({ color, size = 14 }: IconProps) {
   );
 }
 
+export function ChartLineIcon({ color, size = 14 }: IconProps) {
+  return (
+    <View className="items-center justify-center" style={{ height: size, width: size }}>
+      <View
+        className="absolute rounded-full"
+        style={{
+          backgroundColor: color,
+          height: 2,
+          left: size * 0.08,
+          top: size * 0.64,
+          transform: [{ rotate: '-35deg' }],
+          width: size * 0.42,
+        }}
+      />
+      <View
+        className="absolute rounded-full"
+        style={{
+          backgroundColor: color,
+          height: 2,
+          right: size * 0.06,
+          top: size * 0.36,
+          transform: [{ rotate: '28deg' }],
+          width: size * 0.48,
+        }}
+      />
+      {[0.12, 0.45, 0.78].map((left, index) => (
+        <View
+          key={left}
+          className="absolute rounded-full"
+          style={{
+            backgroundColor: color,
+            height: 3,
+            left: size * left,
+            top: index === 0 ? size * 0.68 : index === 1 ? size * 0.46 : size * 0.3,
+            width: 3,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
 export function ListOrderedIcon({ color, size = 14 }: IconProps) {
   return (
     <View className="justify-center" style={{ height: size, width: size }}>

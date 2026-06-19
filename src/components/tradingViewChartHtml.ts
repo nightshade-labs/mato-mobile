@@ -84,10 +84,13 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
     (function() {
       var chart = null;
       var candleSeries = null;
+      var lineSeries = null;
       var volumeSeries = null;
       var isReady = false;
       var pendingData = null;
+      var displayMode = 'candles';
       var hasInitialData = false;
+      var currentCandles = [];
       var currentDataLength = 0;
       var currentFirstTime = null;
       var currentLastTime = null;
@@ -285,7 +288,8 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
       function renderPositionOverlays() {
         if (!positionOverlayEl) return;
         positionOverlayEl.innerHTML = '';
-        if (!chart || !candleSeries || !positionOverlays || positionOverlays.length === 0) return;
+        var priceSeries = displayMode === 'line' ? lineSeries : candleSeries;
+        if (!chart || !priceSeries || !positionOverlays || positionOverlays.length === 0) return;
 
         var rect = container.getBoundingClientRect();
         var bounds = { width: Math.max(1, rect.width), height: Math.max(1, rect.height) };
@@ -294,9 +298,9 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
 
         for (var index = 0; index < positionOverlays.length; index += 1) {
           var overlay = positionOverlays[index];
-          var startX = timeScale.timeToCoordinate(Number(overlay.startTime));
-          var endX = timeScale.timeToCoordinate(Number(overlay.endTime));
-          var y = candleSeries.priceToCoordinate(Number(overlay.averagePrice));
+          var startX = getInterpolatedTimeCoordinate(Number(overlay.startTime));
+          var endX = getInterpolatedTimeCoordinate(Number(overlay.endTime));
+          var y = priceSeries.priceToCoordinate(Number(overlay.averagePrice));
           if (startX === null || endX === null || y === null) continue;
           if (!Number.isFinite(startX) || !Number.isFinite(endX) || !Number.isFinite(y)) continue;
 
@@ -367,6 +371,49 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
           return;
         }
         setTimeout(renderPositionOverlays, 0);
+      }
+
+      function getInterpolatedTimeCoordinate(time) {
+        var directCoordinate = chart.timeScale().timeToCoordinate(time);
+        if (directCoordinate !== null) return directCoordinate;
+        if (!currentCandles || currentCandles.length === 0) return null;
+
+        var upperIndex = currentCandles.findIndex(function(candle) { return Number(candle.time) >= time; });
+        if (upperIndex >= 0 && Number(currentCandles[upperIndex].time) === time) {
+          return chart.timeScale().timeToCoordinate(Number(currentCandles[upperIndex].time));
+        }
+
+        var left = null;
+        var right = null;
+        if (upperIndex < 0) {
+          left = currentCandles[currentCandles.length - 2] || null;
+          right = currentCandles[currentCandles.length - 1] || null;
+        } else if (upperIndex === 0) {
+          left = currentCandles[0] || null;
+          right = currentCandles[1] || null;
+        } else {
+          left = currentCandles[upperIndex - 1] || null;
+          right = currentCandles[upperIndex] || null;
+        }
+
+        if (!left || !right || Number(left.time) === Number(right.time)) return null;
+        var leftX = chart.timeScale().timeToCoordinate(Number(left.time));
+        var rightX = chart.timeScale().timeToCoordinate(Number(right.time));
+        if (leftX === null || rightX === null) return null;
+
+        var ratio = (time - Number(left.time)) / (Number(right.time) - Number(left.time));
+        return leftX + (rightX - leftX) * ratio;
+      }
+
+      function applyDisplayMode(nextMode) {
+        displayMode = nextMode === 'line' ? 'line' : 'candles';
+        if (candleSeries) {
+          candleSeries.applyOptions({ visible: displayMode === 'candles' });
+        }
+        if (lineSeries) {
+          lineSeries.applyOptions({ visible: displayMode === 'line' });
+        }
+        requestRenderPositionOverlays();
       }
 
       function initChart() {
@@ -445,6 +492,17 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
             priceLineVisible: true,
             lastValueVisible: true,
             priceScaleId: 'right',
+            visible: true,
+          });
+
+          lineSeries = chart.addLineSeries({
+            color: '${uiColors.accent}',
+            lineWidth: 2,
+            priceLineColor: '${uiColors.accent}',
+            priceLineVisible: true,
+            lastValueVisible: true,
+            priceScaleId: 'right',
+            visible: false,
           });
 
           volumeSeries = chart.addHistogramSeries({
@@ -468,7 +526,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
               postToRN({ type: 'CROSSHAIR_CLEAR' });
               return;
             }
-            var candleData = param.seriesData.get(candleSeries);
+            var candleData = currentCandles.find(function(candle) { return Number(candle.time) === Number(param.time); });
             var volumeData = param.seriesData.get(volumeSeries);
             if (!candleData) {
               postToRN({ type: 'CROSSHAIR_CLEAR' });
@@ -529,6 +587,7 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
               close: Number(c.close),
             };
           });
+          currentCandles = formattedCandles;
 
           var previousRange = chart.timeScale().getVisibleLogicalRange();
           var previousLength = currentDataLength;
@@ -545,6 +604,12 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
           }
 
           candleSeries.setData(formattedCandles);
+          lineSeries.setData(formattedCandles.map(function(c) {
+            return {
+              time: c.time,
+              value: c.close,
+            };
+          }));
 
           var formattedVolumes = candles.map(function(c) {
             var isUp = Number(c.close) >= Number(c.open);
@@ -597,6 +662,17 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
             close: Number(candle.close),
           };
           candleSeries.update(normalized);
+          lineSeries.update({
+            time: normalized.time,
+            value: normalized.close,
+          });
+          var existingIndex = currentCandles.findIndex(function(c) { return Number(c.time) === normalized.time; });
+          if (existingIndex >= 0) {
+            currentCandles[existingIndex] = normalized;
+          } else {
+            currentCandles.push(normalized);
+            currentCandles.sort(function(left, right) { return Number(left.time) - Number(right.time); });
+          }
           if (volumeSeries) {
             var isUp = normalized.close >= normalized.open;
             volumeSeries.update({
@@ -638,6 +714,10 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
         }
       }
 
+      function handleDisplayMode(data) {
+        applyDisplayMode(data.mode);
+      }
+
       function handleHistoryStatus(data) {
         historyState.hasMore = data.hasMore !== false;
         historyState.loading = Boolean(data.loading);
@@ -662,6 +742,9 @@ export function getTradingViewChartHtml(chartWidth: number, chartHeight: number)
               break;
             case 'POSITION_OVERLAYS':
               handlePositionOverlays(message);
+              break;
+            case 'DISPLAY_MODE':
+              handleDisplayMode(message);
               break;
             case 'RESET_VIEW':
               resetView();

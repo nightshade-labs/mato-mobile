@@ -36,8 +36,11 @@ export interface TradingViewPositionOverlay {
   status: 'active' | 'closed';
 }
 
+export type TradingViewDisplayMode = 'candles' | 'line';
+
 interface TradingViewChartProps {
   data: TradingViewCandle[];
+  displayMode?: TradingViewDisplayMode;
   positionOverlays?: TradingViewPositionOverlay[];
   lastCandle?: TradingViewCandle | null;
   onCrosshairMove?: (point: TradingViewCrosshairData | null) => void;
@@ -57,6 +60,7 @@ type WebViewInboundMessage =
 
 export function TradingViewChart({
   data,
+  displayMode = 'candles',
   positionOverlays = [],
   lastCandle = null,
   onCrosshairMove,
@@ -113,6 +117,17 @@ export function TradingViewChart({
       }),
     );
   }, [chartWidth, isReady, positionOverlays]);
+
+  useEffect(() => {
+    if (!isReady || !webViewRef.current || chartWidth <= 0) return;
+
+    webViewRef.current.postMessage(
+      JSON.stringify({
+        type: 'DISPLAY_MODE',
+        mode: displayMode,
+      }),
+    );
+  }, [chartWidth, displayMode, isReady]);
 
   useEffect(() => {
     if (!isReady || !webViewRef.current) return;
