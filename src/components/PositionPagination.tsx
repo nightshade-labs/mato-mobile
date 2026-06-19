@@ -1,6 +1,6 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { ChevronIcon } from './NativeIcons';
 import { uiColors } from '../theme/colors';
 
 export function getPageCount(itemCount: number, pageSize: number): number {
@@ -52,21 +52,17 @@ export function PositionPagination({
       </Text>
       <View className="flex-row items-center">
         <PaginationButton disabled={!canGoPrevious} onPress={() => onPageChange(page - 1)}>
-          <ChevronLeft
+          <ChevronIcon
             color={canGoPrevious ? uiColors.textSecondary : uiColors.disabledText}
+            direction="left"
             size={14}
-            strokeWidth={2.4}
           />
         </PaginationButton>
         <Text className="min-w-14 text-center text-sm leading-5" style={{ color: uiColors.textMuted }}>
           {page + 1}/{pageCount}
         </Text>
         <PaginationButton disabled={!canGoNext} onPress={() => onPageChange(page + 1)}>
-          <ChevronRight
-            color={canGoNext ? uiColors.textSecondary : uiColors.disabledText}
-            size={14}
-            strokeWidth={2.4}
-          />
+          <ChevronIcon color={canGoNext ? uiColors.textSecondary : uiColors.disabledText} direction="right" size={14} />
         </PaginationButton>
       </View>
     </View>

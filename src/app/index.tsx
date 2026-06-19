@@ -18,7 +18,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import BN from 'bn.js';
 import { toast } from 'sonner-native';
 import { PublicKey } from '@solana/web3.js';
-import { ChartCandlestick, ListOrdered, RefreshCcw, XIcon } from 'lucide-react-native';
 import { resolver } from '../utils/accountResolver';
 import { getMaxTransferAmount, parseTokenAmount } from '../utils/token';
 import { useMarketConfig } from '../hooks/useMarketConfig';
@@ -37,6 +36,7 @@ import { ActivePositionCard } from '../components/ActivePositionCard';
 import { CandleChart } from '../components/CandleChart';
 import { TradingViewChart } from '../components/TradingViewChart';
 import { OrderBookTable } from '../components/OrderBookTable';
+import { ChartCandlestickIcon, ListOrderedIcon, RefreshIcon, XIcon } from '../components/NativeIcons';
 import { clampPage, getPageCount, getPageItems, PositionPagination } from '../components/PositionPagination';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import type { MarketConfigRow } from '../integrations/supabase/types';
@@ -734,9 +734,9 @@ export default function App() {
           >
             <View className="flex-row items-center">
               {marketPanelTab === 'chart' ? (
-                <ChartCandlestick color={uiColors.textSecondary} size={13} strokeWidth={2.2} />
+                <ChartCandlestickIcon color={uiColors.textSecondary} size={13} />
               ) : (
-                <ListOrdered color={uiColors.textSecondary} size={13} strokeWidth={2.2} />
+                <ListOrderedIcon color={uiColors.textSecondary} size={13} />
               )}
               <Text className="ml-1 text-xs font-semibold leading-4" style={{ color: uiColors.textSecondary }}>
                 {marketPanelTab === 'chart' ? 'Chart' : 'Orders'}
@@ -801,14 +801,14 @@ export default function App() {
                   className="absolute right-0 top-0 h-8 w-8 items-center justify-center rounded-full"
                   style={{ backgroundColor: uiColors.panelSoft }}
                 >
-                  <XIcon color={uiColors.textSecondary} size={16} strokeWidth={2.4} />
+                  <XIcon color={uiColors.textSecondary} size={16} />
                 </Pressable>
               </View>
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View className="flex-row items-center mb-4">
                   {[
-                    { key: 'chart', label: 'Chart', Icon: ChartCandlestick },
-                    { key: 'orderBook', label: 'Orders', Icon: ListOrdered },
+                    { key: 'chart', label: 'Chart', Icon: ChartCandlestickIcon },
+                    { key: 'orderBook', label: 'Orders', Icon: ListOrderedIcon },
                   ].map((tab) => {
                     const isActive = marketPanelTab === tab.key;
                     const iconColor = isActive ? uiColors.primaryText : uiColors.textMuted;
@@ -823,7 +823,7 @@ export default function App() {
                         }}
                       >
                         <View className="flex-row items-center">
-                          <tab.Icon color={iconColor} size={13} strokeWidth={2.2} />
+                          <tab.Icon color={iconColor} size={13} />
                           <Text
                             className="ml-1 text-xs font-semibold leading-4"
                             style={{ color: isActive ? uiColors.primaryText : uiColors.textMuted }}
@@ -871,7 +871,7 @@ export default function App() {
                           style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
                         >
                           <View className="flex-row items-center">
-                            <RefreshCcw color={uiColors.textSecondary} size={13} strokeWidth={2.2} />
+                            <RefreshIcon color={uiColors.textSecondary} size={13} />
                             <Text
                               className="ml-1 text-xs font-semibold leading-4"
                               style={{ color: uiColors.textSecondary }}
