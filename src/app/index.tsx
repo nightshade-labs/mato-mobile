@@ -703,14 +703,14 @@ export default function App() {
         <View className="mt-3 flex-row justify-end">
           <Pressable
             onPress={() => setIsMarketPanelOpen(true)}
-            className="rounded-full border px-3.5 py-2"
+            className="rounded-full border px-2.5 py-1.5"
             style={{
               backgroundColor: uiColors.panelSoft,
               borderColor: uiColors.border,
             }}
           >
-            <Text className="text-sm font-semibold leading-5" style={{ color: uiColors.textSecondary }}>
-              {marketPanelTab === 'chart' ? '▥ Chart' : '☰ Orders'}
+            <Text className="text-xs font-semibold leading-4" style={{ color: uiColors.textSecondary }}>
+              {marketPanelTab === 'chart' ? 'Chart' : 'Orders'}
             </Text>
           </Pressable>
         </View>
@@ -779,15 +779,15 @@ export default function App() {
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View className="flex-row items-center mb-4">
                   {[
-                    { key: 'chart', label: '▥ Chart' },
-                    { key: 'orderBook', label: '☰ Orders' },
+                    { key: 'chart', label: 'Chart' },
+                    { key: 'orderBook', label: 'Orders' },
                   ].map((tab) => {
                     const isActive = marketPanelTab === tab.key;
                     return (
                       <Pressable
                         key={tab.key}
                         onPress={() => setMarketPanelTab(tab.key as MarketPanelTab)}
-                        className="rounded-full border px-3.5 py-2 mr-2"
+                        className="rounded-full border px-2.5 py-1.5 mr-2"
                         style={{
                           backgroundColor: isActive ? uiColors.primary : uiColors.panelSoft,
                           borderColor: isActive ? uiColors.primaryPress : uiColors.border,
@@ -815,7 +815,7 @@ export default function App() {
                               <Pressable
                                 key={option.label}
                                 onPress={() => handleTimeframeChange(option.label)}
-                                className="rounded-full border px-3.5 py-2 mr-2"
+                                className="rounded-full border px-2.5 py-1.5 mr-2"
                                 style={{
                                   backgroundColor: isActive ? uiColors.primary : uiColors.panelSoft,
                                   borderColor: isActive ? uiColors.primaryPress : uiColors.border,
@@ -835,11 +835,11 @@ export default function App() {
                       {ENABLE_ADVANCED_CHART && (
                         <Pressable
                           onPress={handleResetChartView}
-                          className="rounded-full border px-3.5 py-2"
+                          className="rounded-full border px-2.5 py-1.5"
                           style={{ backgroundColor: uiColors.panelSoft, borderColor: uiColors.border }}
                         >
-                          <Text className="text-sm font-semibold leading-5" style={{ color: uiColors.textSecondary }}>
-                            ↻ Reset
+                          <Text className="text-xs font-semibold leading-4" style={{ color: uiColors.textSecondary }}>
+                            Reset
                           </Text>
                         </Pressable>
                       )}
@@ -943,7 +943,7 @@ export default function App() {
             <Pressable
               onPress={() => handleSideChange('buy')}
               className="flex-1 py-3.5 rounded-lg items-center"
-              style={{ backgroundColor: side === 'buy' ? uiColors.buy : 'transparent' }}
+              style={{ backgroundColor: side === 'buy' ? uiColors.primary : 'transparent' }}
             >
               <Text
                 className="text-base font-semibold leading-5"
@@ -955,7 +955,7 @@ export default function App() {
             <Pressable
               onPress={() => handleSideChange('sell')}
               className="flex-1 py-3.5 rounded-lg items-center"
-              style={{ backgroundColor: side === 'sell' ? uiColors.sell : 'transparent' }}
+              style={{ backgroundColor: side === 'sell' ? uiColors.primary : 'transparent' }}
             >
               <Text
                 className="text-base font-semibold leading-5"
@@ -1153,7 +1153,7 @@ export default function App() {
               disabled={submitDisabled}
               className="rounded-xl py-4.5 items-center"
               style={{
-                backgroundColor: submitDisabled ? uiColors.disabledBg : side === 'buy' ? uiColors.buy : uiColors.sell,
+                backgroundColor: submitDisabled ? uiColors.disabledBg : uiColors.primary,
               }}
             >
               <Text className="text-white font-semibold text-lg leading-6">{statusLabel}</Text>

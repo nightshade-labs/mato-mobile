@@ -116,14 +116,14 @@ export function OrderBookTable({
             <Pressable
               key={filter.value}
               onPress={() => setDirectionFilter(filter.value)}
-              className="rounded-full border px-3.5 py-2 mr-2"
+              className="rounded-full border px-2.5 py-1.5 mr-2"
               style={{
                 backgroundColor: isActive ? uiColors.primary : uiColors.panelSoft,
                 borderColor: isActive ? uiColors.primaryPress : uiColors.border,
               }}
             >
               <Text
-                className="text-sm font-semibold leading-5"
+                className="text-xs font-semibold leading-4"
                 style={{ color: isActive ? uiColors.primaryText : uiColors.textMuted }}
               >
                 {filter.label}
