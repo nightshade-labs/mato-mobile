@@ -26,6 +26,7 @@ import { useMintBalance } from '../hooks/useMintBalance';
 import { useSubmitOrder } from '../hooks/useSubmitOrder';
 import { useTradePositions } from '../hooks/useTradePositions';
 import { useClosePosition } from '../hooks/useClosePosition';
+import { useReclaimRent } from '../hooks/useReclaimRent';
 import { useStreamingMarketState } from '../hooks/useStreamingMarketState';
 import { useMarketCandles } from '../hooks/useMarketCandles';
 import { useMarketUpdates } from '../integrations/supabase/useMarketUpdates';
@@ -257,6 +258,15 @@ export default function App() {
     signature: closeSignature,
     closedCount,
   } = useClosePosition();
+  const {
+    closeableCount: reclaimRentCount,
+    error: reclaimRentError,
+    isReclaiming,
+    reclaimRent,
+    reclaimedCount,
+    signature: reclaimRentSignature,
+    status: reclaimRentStatus,
+  } = useReclaimRent(MARKET, selectedAccount?.publicKey ?? null);
   const { state: streamingState, error: streamingStateError } = useStreamingMarketState(MARKET);
   const nativeSolBalance = useSolBalance();
   const orderBookPositions = useMarketTradePositions(MARKET);
@@ -836,6 +846,18 @@ export default function App() {
     }
   };
 
+  const handleReclaimRent = async () => {
+    if (lowMaintenanceNativeSolWarning) {
+      toast.error(lowMaintenanceNativeSolWarning);
+      return;
+    }
+
+    const success = await reclaimRent();
+    if (success) {
+      await nativeSolBalance.refresh();
+    }
+  };
+
   const openExplorerTransaction = useCallback(async (transactionSignature: string) => {
     const url = explorerTransactionUrl(transactionSignature);
     const canOpen = await Linking.canOpenURL(url);
@@ -884,6 +906,26 @@ export default function App() {
       toast.error(closeError);
     }
   }, [closeStatus, closeError, closeSignature, closedCount, openExplorerTransaction]);
+
+  useEffect(() => {
+    if (reclaimRentStatus === 'success') {
+      toast.success('Rent reclaimed', {
+        description: reclaimedCount > 1 ? `${reclaimedCount} accounts were closed.` : undefined,
+        action: reclaimRentSignature
+          ? {
+              label: 'View tx',
+              onClick: () => {
+                void openExplorerTransaction(reclaimRentSignature);
+              },
+            }
+          : undefined,
+      });
+      return;
+    }
+    if (reclaimRentStatus === 'error' && reclaimRentError) {
+      toast.error(reclaimRentError);
+    }
+  }, [reclaimRentStatus, reclaimRentError, reclaimRentSignature, reclaimedCount, openExplorerTransaction]);
 
   return (
     <View className="flex-1" style={{ backgroundColor: uiColors.background }}>
@@ -1223,6 +1265,23 @@ export default function App() {
               {lowSubmitNativeSolWarning}
             </Text>
           </View>
+        )}
+
+        {selectedAccount && reclaimRentCount > 0 && (
+          <Pressable
+            onPress={() => void handleReclaimRent()}
+            disabled={isReclaiming}
+            className="mx-4 mb-4 h-12 rounded-xl border items-center justify-center"
+            style={{
+              backgroundColor: uiColors.warningBg,
+              borderColor: uiColors.warningBorder,
+              opacity: isReclaiming ? 0.65 : 1,
+            }}
+          >
+            <Text className="text-sm font-semibold leading-5" style={{ color: uiColors.warningText }}>
+              reclaim rent
+            </Text>
+          </Pressable>
         )}
 
         <View className="mx-4 pt-5 pb-4">

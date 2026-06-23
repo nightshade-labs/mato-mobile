@@ -9,10 +9,8 @@ export const queryKeys = {
   balance: {
     all: ['balance'] as const,
     byAuthority: (authority: PublicKey | string | null | undefined) => ['balance', toAuthorityKey(authority)] as const,
-    byAuthorityMint: (
-      authority: PublicKey | string | null | undefined,
-      mint: string | null | undefined,
-    ) => ['balance', toAuthorityKey(authority), mint ?? 'unknown'] as const,
+    byAuthorityMint: (authority: PublicKey | string | null | undefined, mint: string | null | undefined) =>
+      ['balance', toAuthorityKey(authority), mint ?? 'unknown'] as const,
   },
   tradePositions: {
     all: ['tradePositions'] as const,
@@ -37,6 +35,13 @@ export const queryKeys = {
     all: ['closePositionEvents'] as const,
     list: (positionAuthority: string, marketId: number | undefined, limit: number) =>
       ['closePositionEvents', positionAuthority, marketId ?? 'all', limit] as const,
+  },
+  rentAccounts: {
+    all: ['rentAccounts'] as const,
+    byAuthority: (authority: PublicKey | string | null | undefined) =>
+      ['rentAccounts', toAuthorityKey(authority)] as const,
+    runtime: (market: PublicKey | string | null | undefined) =>
+      ['rentAccounts', 'runtime', toAuthorityKey(market)] as const,
   },
   streamingMarket: {
     all: ['streamingMarket'] as const,
