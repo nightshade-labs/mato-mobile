@@ -29,8 +29,8 @@ import { useClosePosition } from '../hooks/useClosePosition';
 import { useReclaimRent } from '../hooks/useReclaimRent';
 import { useStreamingMarketState } from '../hooks/useStreamingMarketState';
 import { useMarketCandles } from '../hooks/useMarketCandles';
-import { useMarketUpdates } from '../integrations/supabase/useMarketUpdates';
-import { useClosePositionEvents } from '../integrations/supabase/useClosePositionEvents';
+import { useMarketUpdates } from '../integrations/tigercloud/useMarketUpdates';
+import { useClosePositionEvents } from '../integrations/tigercloud/useClosePositionEvents';
 import { ConnectButton } from '../components/ConnectButton';
 import { PercentageSlider } from '../components/PercentageSlider';
 import { ClosedPositionsList } from '../components/ClosedPositionsList';
@@ -53,7 +53,7 @@ import {
 } from '../components/NativeIcons';
 import { clampPage, getPageCount, getPageItems, PositionPagination } from '../components/PositionPagination';
 import { useAuthorization } from '../providers/AuthorizationProvider';
-import type { MarketConfigRow } from '../integrations/supabase/types';
+import type { MarketConfig } from '../integrations/tigercloud/types';
 import { useSolBalance } from '../hooks/useSolBalance';
 import { useMarketTradePositions } from '../hooks/useMarketTradePositions';
 import {
@@ -101,7 +101,7 @@ function shortenAddress(value: string | null | undefined): string {
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
-function resolveTicker(config: MarketConfigRow | null, side: OrderSide): string {
+function resolveTicker(config: MarketConfig | null, side: OrderSide): string {
   if (!config) return side === 'buy' ? 'QUOTE' : 'BASE';
 
   const symbol =

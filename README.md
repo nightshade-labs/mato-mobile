@@ -16,12 +16,10 @@ Create a local Expo environment file before starting the app:
 cp .env.example .env
 ```
 
-Fill these values from the matching `mato-ui` deployment/project settings:
+Fill these values from the matching TigerCloud-backed API deployment and Solana RPC settings:
 
 ```bash
-EXPO_PUBLIC_SUPABASE_URL=
-EXPO_PUBLIC_SUPABASE_ANON_KEY=
-EXPO_PUBLIC_READ_API_URL=
+EXPO_PUBLIC_TIGERCLOUD_API_URL=https://read-api-production-f8ea.up.railway.app
 EXPO_PUBLIC_SOLANA_CLUSTER=mainnet
 EXPO_PUBLIC_SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 ```
@@ -29,6 +27,7 @@ EXPO_PUBLIC_SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 Expo only exposes variables prefixed with `EXPO_PUBLIC_` to the app bundle.
 Restart `npm run android` or `npm run dev` after changing `.env`.
 Use `EXPO_PUBLIC_SOLANA_CLUSTER=devnet` only when intentionally testing against devnet data and wallets.
+`EXPO_PUBLIC_TIGERCLOUD_API_URL` should be the HTTPS base URL for the API that serves `/v1/markets/...` and `/v1/authorities/{authority}/closed-positions`.
 
 ## Android Device
 

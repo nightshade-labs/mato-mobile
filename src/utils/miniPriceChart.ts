@@ -1,4 +1,4 @@
-import type { MarketUpdateEvent } from '../integrations/supabase/types';
+import type { MarketUpdateEvent } from '../integrations/tigercloud/types';
 
 export interface MarketPricePoint {
   slot: number;

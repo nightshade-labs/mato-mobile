@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from './client';
 import type { ClosePositionEvent } from './types';
-import { parseClosePositionEvent } from './types';
+import { fetchClosePositionEvents } from './api';
 import { queryKeys } from '../../query/keys';
 
 const EMPTY_CLOSE_POSITION_EVENTS: ClosePositionEvent[] = [];
@@ -22,26 +21,12 @@ export function useClosePositionEvents({ positionAuthority, marketId, limit = 50
   const query = useQuery<ClosePositionEvent[]>({
     queryKey,
     enabled: !!positionAuthority,
-    queryFn: async () => {
-      let request = supabase
-        .from('close_position_events')
-        .select('*')
-        .eq('position_authority', positionAuthority)
-        .order('slot', { ascending: false })
-        .limit(limit);
-
-      if (marketId !== undefined) {
-        request = request.eq('market_id', marketId);
-      }
-
-      const { data, error: fetchError } = await request;
-
-      if (fetchError) {
-        throw new Error(fetchError.message);
-      }
-
-      return (data ?? []).map(parseClosePositionEvent);
-    },
+    queryFn: () =>
+      fetchClosePositionEvents({
+        limit,
+        marketId,
+        positionAuthority,
+      }),
   });
 
   return {

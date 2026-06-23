@@ -10,11 +10,6 @@ interface UseMarketUpdatesOptions {
   limit?: number;
 }
 
-const FNV64_OFFSET_BASIS = 0xcbf29ce484222325n;
-const FNV64_PRIME = 0x100000001b3n;
-const FNV64_MASK = 0xffffffffffffffffn;
-const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
-
 interface ReadApiMarketUpdateItem {
   event_uid: string;
   signature: string;
@@ -32,7 +27,7 @@ interface ReadApiMarketUpdatesResponse {
   has_more: boolean;
   limit: number;
   points: number;
-  items: Array<ReadApiMarketUpdateItem>;
+  items: ReadApiMarketUpdateItem[];
 }
 
 function sortBySlotDesc(events: MarketUpdateEvent[]): MarketUpdateEvent[] {
@@ -50,22 +45,10 @@ function dedupeById(events: MarketUpdateEvent[]): MarketUpdateEvent[] {
   return deduped;
 }
 
-function stableEventIdFromUid(eventUid: string) {
-  let hash = FNV64_OFFSET_BASIS;
-
-  for (let index = 0; index < eventUid.length; index += 1) {
-    hash ^= BigInt(eventUid.charCodeAt(index));
-    hash = (hash * FNV64_PRIME) & FNV64_MASK;
-  }
-
-  const normalized = hash % MAX_SAFE_INTEGER_BIGINT;
-  return Number(normalized === 0n ? 1n : normalized);
-}
-
-function parseReadApiMarketUpdates(items: Array<ReadApiMarketUpdateItem>) {
+function parseReadApiMarketUpdates(items: ReadApiMarketUpdateItem[]) {
   return items.map((item) =>
     parseMarketUpdateEvent({
-      id: stableEventIdFromUid(item.event_uid),
+      event_uid: item.event_uid,
       signature: item.signature,
       slot: item.slot,
       market_id: item.market_id,

@@ -1,5 +1,5 @@
 import type { TCandle } from 'react-native-wagmi-charts';
-import type { MarketUpdateEvent } from '../integrations/supabase/types';
+import type { MarketUpdateEvent } from '../integrations/tigercloud/types';
 
 const DEFAULT_SLOT_DURATION_MS = 400;
 

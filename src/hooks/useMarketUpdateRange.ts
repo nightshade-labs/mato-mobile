@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { readApiUrl } from '../api/readApi';
-import type { MarketUpdateEvent } from '../integrations/supabase/types';
-import { parseMarketUpdateEvent } from '../integrations/supabase/types';
+import type { MarketUpdateEvent } from '../integrations/tigercloud/types';
+import { parseMarketUpdateEvent } from '../integrations/tigercloud/types';
 import { queryKeys } from '../query/keys';
 
 interface UseMarketUpdateRangeOptions {
@@ -16,10 +16,6 @@ const DEFAULT_MARKET_HISTORY_MAX_ROWS = 100_000;
 export const MARKET_UPDATE_RANGE_STALE_TIME = 5 * 60_000;
 const DEFAULT_CLOSED_POSITION_MINI_CHART_POINTS = 240;
 export const CLOSED_POSITION_MINI_CHART_STALE_TIME = 5 * 60_000;
-const FNV64_OFFSET_BASIS = 0xcbf29ce484222325n;
-const FNV64_PRIME = 0x100000001b3n;
-const FNV64_MASK = 0xffffffffffffffffn;
-const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 
 function sortBySlotAsc(events: MarketUpdateEvent[]): MarketUpdateEvent[] {
   return [...events].sort((left, right) => {
@@ -50,7 +46,7 @@ interface ReadApiMarketHistoryResponse {
   start_slot: number;
   end_slot: number;
   points: number;
-  items: Array<ReadApiMarketHistoryItem>;
+  items: ReadApiMarketHistoryItem[];
 }
 
 interface ReadApiClosedPositionMiniChartItem {
@@ -63,7 +59,7 @@ interface ReadApiClosedPositionMiniChartResponse {
   start_slot: number;
   end_slot: number;
   points: number;
-  items: Array<ReadApiClosedPositionMiniChartItem>;
+  items: ReadApiClosedPositionMiniChartItem[];
 }
 
 export interface ClosedPositionMiniChartPoint {
@@ -71,20 +67,8 @@ export interface ClosedPositionMiniChartPoint {
   price: number;
 }
 
-function stableEventIdFromUid(eventUid: string) {
-  let hash = FNV64_OFFSET_BASIS;
-
-  for (let index = 0; index < eventUid.length; index += 1) {
-    hash ^= BigInt(eventUid.charCodeAt(index));
-    hash = (hash * FNV64_PRIME) & FNV64_MASK;
-  }
-
-  const normalized = hash % MAX_SAFE_INTEGER_BIGINT;
-  return Number(normalized === 0n ? 1n : normalized);
-}
-
-function dedupeMiniChartPoints(points: Array<ClosedPositionMiniChartPoint>) {
-  const deduped: Array<ClosedPositionMiniChartPoint> = [];
+function dedupeMiniChartPoints(points: ClosedPositionMiniChartPoint[]) {
+  const deduped: ClosedPositionMiniChartPoint[] = [];
   for (const point of points) {
     const previous = deduped[deduped.length - 1];
     if (previous && previous.slot === point.slot) {
@@ -127,7 +111,7 @@ export async function fetchMarketUpdateRange({
   return sortBySlotAsc(
     payload.items.map((item) =>
       parseMarketUpdateEvent({
-        id: stableEventIdFromUid(item.event_uid),
+        event_uid: item.event_uid,
         signature: item.signature,
         slot: item.slot,
         market_id: item.market_id,
@@ -149,7 +133,7 @@ export async function fetchClosedPositionMiniChart({
   marketId: number;
   maxPoints?: number;
   startSlot: number;
-}): Promise<Array<ClosedPositionMiniChartPoint>> {
+}): Promise<ClosedPositionMiniChartPoint[]> {
   if (startSlot > endSlot) {
     return [];
   }

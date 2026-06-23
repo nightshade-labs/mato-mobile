@@ -3,8 +3,8 @@ import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native'
 import type { TextStyle } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { CLOSED_POSITION_MINI_CHART_STALE_TIME, fetchClosedPositionMiniChart } from '../hooks/useMarketUpdateRange';
-import { useClosePositionEvents } from '../integrations/supabase/useClosePositionEvents';
-import type { ClosePositionEvent, MarketUpdateEvent } from '../integrations/supabase/types';
+import { useClosePositionEvents } from '../integrations/tigercloud/useClosePositionEvents';
+import type { ClosePositionEvent, MarketUpdateEvent } from '../integrations/tigercloud/types';
 import { queryKeys } from '../query/keys';
 import { uiColors } from '../theme/colors';
 import { CLUSTER } from '../utils/constants';
