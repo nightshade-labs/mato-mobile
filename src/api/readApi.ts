@@ -1,8 +1,4 @@
-const readApiBaseUrl = (
-  process.env.EXPO_PUBLIC_TIGERCLOUD_API_URL ??
-  process.env.EXPO_PUBLIC_READ_API_URL ??
-  ''
-).trim();
+const readApiBaseUrl = (process.env.EXPO_PUBLIC_TIGERCLOUD_API_URL ?? '').trim();
 
 function normalizedBaseUrl() {
   if (!readApiBaseUrl) {
