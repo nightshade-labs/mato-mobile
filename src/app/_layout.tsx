@@ -11,6 +11,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar, Text, View } from 'react-native';
 import { uiColors } from '../theme/colors';
+import { RiskDisclaimerDialog } from '../components/RiskDisclaimerDialog';
 
 const cluster = SOLANA_NETWORK === 'devnet' ? createSolanaDevnet() : createSolanaMainnet(RPC_ENDPOINT);
 const TOAST_ICON_SIZE = 20;
@@ -57,6 +58,7 @@ export default function Layout() {
                   <StatusBar barStyle="light-content" backgroundColor={uiColors.background} />
                   <Slot />
                 </SafeAreaView>
+                <RiskDisclaimerDialog />
                 <Toaster
                   position="bottom-center"
                   duration={10000}
