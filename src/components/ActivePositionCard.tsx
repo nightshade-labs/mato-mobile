@@ -420,16 +420,17 @@ export function ActivePositionCard({
             </Text>
           </View>
 
-          <Pressable
-            onPress={onClose}
-            disabled={isClosing}
-            className="rounded-lg py-3 items-center mt-3"
-            style={{ backgroundColor: isClosing ? uiColors.dangerBg : uiColors.danger }}
-          >
-            <Text className="text-white font-semibold text-sm leading-5">{closeButtonLabel}</Text>
-          </Pressable>
         </>
       )}
+
+      <Pressable
+        onPress={onClose}
+        disabled={isClosing}
+        className="rounded-lg py-3 items-center mt-3"
+        style={{ backgroundColor: isClosing ? uiColors.dangerBg : uiColors.danger }}
+      >
+        <Text className="text-white font-semibold text-sm leading-5">{closeButtonLabel}</Text>
+      </Pressable>
     </View>
   );
 }
