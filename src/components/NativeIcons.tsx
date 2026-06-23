@@ -116,6 +116,67 @@ export function RefreshIcon({ color, size = 14 }: IconProps) {
   );
 }
 
+export function HandCoinsIcon({ color, size = 16 }: IconProps) {
+  return (
+    <View className="items-center justify-center" style={{ height: size, width: size }}>
+      <View
+        className="absolute rounded-full"
+        style={{
+          borderColor: color,
+          borderWidth: 1.5,
+          height: size * 0.28,
+          right: size * 0.08,
+          top: size * 0.08,
+          width: size * 0.28,
+        }}
+      />
+      <View
+        className="absolute rounded-full"
+        style={{
+          borderColor: color,
+          borderWidth: 1.5,
+          height: size * 0.28,
+          right: size * 0.34,
+          top: size * 0.2,
+          width: size * 0.28,
+        }}
+      />
+      <View
+        className="absolute rounded-full"
+        style={{
+          backgroundColor: color,
+          height: 2,
+          left: size * 0.12,
+          top: size * 0.58,
+          transform: [{ rotate: '12deg' }],
+          width: size * 0.5,
+        }}
+      />
+      <View
+        className="absolute rounded-full"
+        style={{
+          backgroundColor: color,
+          height: 2,
+          left: size * 0.08,
+          top: size * 0.72,
+          width: size * 0.72,
+        }}
+      />
+      <View
+        className="absolute rounded-full"
+        style={{
+          backgroundColor: color,
+          height: 2,
+          right: size * 0.06,
+          top: size * 0.64,
+          transform: [{ rotate: '-32deg' }],
+          width: size * 0.28,
+        }}
+      />
+    </View>
+  );
+}
+
 export function XIcon({ color, size = 16 }: IconProps) {
   return (
     <View className="items-center justify-center" style={{ height: size, width: size }}>

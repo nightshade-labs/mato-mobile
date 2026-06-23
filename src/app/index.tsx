@@ -43,7 +43,14 @@ import {
   type TradingViewPositionOverlay,
 } from '../components/TradingViewChart';
 import { OrderBookTable } from '../components/OrderBookTable';
-import { ChartCandlestickIcon, ChartLineIcon, ListOrderedIcon, RefreshIcon, XIcon } from '../components/NativeIcons';
+import {
+  ChartCandlestickIcon,
+  ChartLineIcon,
+  HandCoinsIcon,
+  ListOrderedIcon,
+  RefreshIcon,
+  XIcon,
+} from '../components/NativeIcons';
 import { clampPage, getPageCount, getPageItems, PositionPagination } from '../components/PositionPagination';
 import { useAuthorization } from '../providers/AuthorizationProvider';
 import type { MarketConfigRow } from '../integrations/supabase/types';
@@ -1278,9 +1285,12 @@ export default function App() {
               opacity: isReclaiming ? 0.65 : 1,
             }}
           >
-            <Text className="text-sm font-semibold leading-5" style={{ color: uiColors.warningText }}>
-              reclaim rent
-            </Text>
+            <View className="flex-row items-center">
+              <HandCoinsIcon color={uiColors.warningText} size={16} />
+              <Text className="ml-2 text-sm font-semibold leading-5" style={{ color: uiColors.warningText }}>
+                Reclaim rent
+              </Text>
+            </View>
           </Pressable>
         )}
 
