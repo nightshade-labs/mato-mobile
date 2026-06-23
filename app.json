@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "scheme": "acme",
+    "userInterfaceStyle": "automatic",
+    "orientation": "default",
+    "web": {
+      "output": "static"
+    },
+    "name": "Mato",
+    "slug": "Mato",
+    "icon": "./assets/mato-icon.png",
+    "splash": {
+      "image": "./assets/mato-splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#07111F"
+    },
+    "android": {
+      "package": "com.anonymous.kitexpouniwind",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/mato-adaptive-icon.png",
+        "backgroundColor": "#07111F"
+      },
+      "splash": {
+        "image": "./assets/mato-splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#07111F"
+      }
+    },
+    "ios": {
+      "splash": {
+        "image": "./assets/mato-splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#07111F"
+      }
+    }
+  }
+}
