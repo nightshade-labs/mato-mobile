@@ -1,5 +1,7 @@
 export interface ClosePositionEvent {
   id: number;
+  event_key: string;
+  event_index: number | null;
   signature: string;
   slot: number;
   position_authority: string;
@@ -39,6 +41,7 @@ export interface MarketConfig {
 export interface ClosePositionEventRow {
   id?: number | string;
   event_uid?: string;
+  event_index?: number | string | null;
   signature: string;
   slot: number;
   position_authority: string;
@@ -109,13 +112,60 @@ function parseId(id: number | string | undefined, fallback: string) {
   return stableNumericId(typeof id === 'string' && id.length > 0 ? id : fallback);
 }
 
-export function parseClosePositionEvent(row: ClosePositionEventRow): ClosePositionEvent {
+function parseOptionalNumber(value: number | string | null | undefined): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function closePositionEventKey(row: ClosePositionEventRow, fallbackIndex?: number) {
+  const eventUid = row.event_uid?.trim();
+  if (eventUid) {
+    return eventUid;
+  }
+
+  if (typeof row.id === 'string' && !/^\d+$/.test(row.id)) {
+    return row.id;
+  }
+
+  const eventIndex = parseOptionalNumber(row.event_index);
+  const indexPart = eventIndex === null ? `response:${fallbackIndex ?? 'none'}` : `event:${eventIndex}`;
+
+  return [
+    'close_position',
+    row.signature,
+    indexPart,
+    row.position_authority,
+    row.market_id,
+    row.slot,
+    row.start_slot ?? 'none',
+    row.end_slot ?? 'none',
+    row.deposit_amount,
+    row.swapped_amount,
+    row.remaining_amount,
+    row.fee_amount,
+    row.is_buy,
+    row.created_at,
+  ].join(':');
+}
+
+export function parseClosePositionEvent(row: ClosePositionEventRow, fallbackIndex?: number): ClosePositionEvent {
+  const event_key = closePositionEventKey(row, fallbackIndex);
+
   return {
     ...row,
-    id: parseId(
-      row.id ?? row.event_uid,
-      `close_position:${row.signature}:${row.position_authority}:${row.market_id}:${row.slot}`,
-    ),
+    id: stableNumericId(event_key),
+    event_key,
+    event_index: parseOptionalNumber(row.event_index),
     deposit_amount: BigInt(String(row.deposit_amount)),
     swapped_amount: BigInt(String(row.swapped_amount)),
     remaining_amount: BigInt(String(row.remaining_amount)),

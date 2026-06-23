@@ -60,5 +60,5 @@ export async function fetchClosePositionEvents({
     `/v1/authorities/${encodeURIComponent(positionAuthority)}/closed-positions?${params.toString()}`,
     'closed positions',
   );
-  return payload.items.map(parseClosePositionEvent);
+  return payload.items.map((item, index) => parseClosePositionEvent(item, index));
 }

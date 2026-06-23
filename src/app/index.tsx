@@ -558,7 +558,7 @@ export default function App() {
         {
           averagePrice,
           endTime: Math.floor(endTimeMs / 1000),
-          id: `closed-${event.id}`,
+          id: `closed-${event.event_key}`,
           label: `${isBuy ? 'Buy' : 'Sell'} ${formatAtoms(consumedAtoms, depositDecimals)} ${depositToken}`,
           side: isBuy ? 'buy' : 'sell',
           startTime: Math.floor(startTimeMs / 1000),

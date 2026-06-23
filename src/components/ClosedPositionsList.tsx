@@ -153,7 +153,7 @@ function buildChartStateFromNormalizedHistory(
 
 function findNextPendingChartEvents(
   events: ClosePositionEvent[],
-  chartStatesByEventId: ReadonlyMap<number, ClosedPositionChartState>,
+  chartStatesByEventId: ReadonlyMap<string, ClosedPositionChartState>,
   maxCount: number,
 ): ClosePositionEvent[] {
   const pendingEvents: ClosePositionEvent[] = [];
@@ -161,7 +161,7 @@ function findNextPendingChartEvents(
   for (let index = 0; index < events.length; index += 1) {
     const event = events[index];
     if (!hasValidChartRange(event)) continue;
-    if (chartStatesByEventId.has(event.id)) continue;
+    if (chartStatesByEventId.has(event.event_key)) continue;
     pendingEvents.push(event);
     if (pendingEvents.length >= maxCount) break;
   }
@@ -175,7 +175,7 @@ function closedPositionMiniChartQueryKey(marketId: number, startSlot: number, en
 
 function sortClosedPositionEventsNewestFirst(left: ClosePositionEvent, right: ClosePositionEvent): number {
   if (right.slot !== left.slot) return right.slot - left.slot;
-  return right.id - left.id;
+  return right.event_key.localeCompare(left.event_key);
 }
 
 export function ClosedPositionsList({
@@ -195,7 +195,7 @@ export function ClosedPositionsList({
     marketId,
     limit,
   });
-  const [chartStatesByEventId, setChartStatesByEventId] = useState<Map<number, ClosedPositionChartState>>(new Map());
+  const [chartStatesByEventId, setChartStatesByEventId] = useState<Map<string, ClosedPositionChartState>>(new Map());
   const [closedPositionPage, setClosedPositionPage] = useState(0);
   const chartLoadRunRef = useRef(0);
   const isMountedRef = useRef(true);
@@ -228,7 +228,7 @@ export function ClosedPositionsList({
 
   useEffect(() => {
     chartLoadRunRef.current += 1;
-    const cachedChartStates = new Map<number, ClosedPositionChartState>();
+    const cachedChartStates = new Map<string, ClosedPositionChartState>();
 
     for (const event of sortedEvents) {
       if (!hasValidChartRange(event)) continue;
@@ -238,7 +238,7 @@ export function ClosedPositionsList({
       );
       if (!cachedHistory) continue;
 
-      cachedChartStates.set(event.id, buildChartStateFromMiniChartPoints(cachedHistory));
+      cachedChartStates.set(event.event_key, buildChartStateFromMiniChartPoints(cachedHistory));
     }
 
     setChartStatesByEventId(cachedChartStates);
@@ -251,11 +251,11 @@ export function ClosedPositionsList({
 
     startTransition(() => {
       setChartStatesByEventId((current) => {
-        let next: Map<number, ClosedPositionChartState> | null = null;
+        let next: Map<string, ClosedPositionChartState> | null = null;
 
         for (const event of sortedEvents) {
           if (!hasValidChartRange(event)) continue;
-          if (current.get(event.id)?.status === 'ready') continue;
+          if (current.get(event.event_key)?.status === 'ready') continue;
 
           const nextState = buildChartStateFromNormalizedHistory(normalizedSeedHistory, event);
           if (nextState === null) continue;
@@ -263,7 +263,7 @@ export function ClosedPositionsList({
           if (next === null) {
             next = new Map(current);
           }
-          next.set(event.id, nextState);
+          next.set(event.event_key, nextState);
         }
 
         return next ?? current;
@@ -298,8 +298,8 @@ export function ClosedPositionsList({
       const next = new Map(current);
 
       for (const event of pendingChartEvents) {
-        if (!next.has(event.id)) {
-          next.set(event.id, { status: 'loading', points: null, error: null });
+        if (!next.has(event.event_key)) {
+          next.set(event.event_key, { status: 'loading', points: null, error: null });
         }
       }
 
@@ -330,7 +330,7 @@ export function ClosedPositionsList({
           startTransition(() => {
             setChartStatesByEventId((current) => {
               const next = new Map(current);
-              next.set(event.id, buildChartStateFromMiniChartPoints(points));
+              next.set(event.event_key, buildChartStateFromMiniChartPoints(points));
               return next;
             });
           });
@@ -342,7 +342,7 @@ export function ClosedPositionsList({
           startTransition(() => {
             setChartStatesByEventId((current) => {
               const next = new Map(current);
-              next.set(event.id, { status: 'error', points: null, error: message });
+              next.set(event.event_key, { status: 'error', points: null, error: message });
               return next;
             });
           });
@@ -374,9 +374,9 @@ export function ClosedPositionsList({
         <View>
           {paginatedEvents.map((event) => (
             <ClosedPositionRow
-              key={event.id}
+              key={event.event_key}
               event={event}
-              chartState={chartStatesByEventId.get(event.id) ?? IDLE_CHART_STATE}
+              chartState={chartStatesByEventId.get(event.event_key) ?? IDLE_CHART_STATE}
               baseTicker={baseTicker}
               quoteTicker={quoteTicker}
               baseDecimals={baseDecimals}
